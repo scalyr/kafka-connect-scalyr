@@ -5,6 +5,8 @@ import org.junit.Before;
 import org.junit.Test;
 
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -26,9 +28,12 @@ public class ScalyrSinkConnectorTest {
    */
   @Test
   public void testStart() {
-    scalyrSinkConnector.start(TestUtils.makeMap(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123"));
+    scalyrSinkConnector.start(makeConfig());
   }
 
+  /**
+   * Test invalid config
+   */
   @Test(expected = ConnectException.class)
   public void testStartInvalidConfig() {
     scalyrSinkConnector.start(new HashMap<>());
@@ -39,6 +44,7 @@ public class ScalyrSinkConnectorTest {
    */
   @Test
   public void testStop() {
+    scalyrSinkConnector.start(makeConfig());
     scalyrSinkConnector.stop();
   }
 
@@ -47,7 +53,39 @@ public class ScalyrSinkConnectorTest {
     assertEquals(VersionUtil.getVersion(), scalyrSinkConnector.version());
   }
 
-  @Test public void testConfig() {
+  /**
+   * Verify taskConfigs returns the correct task configs for the SinkTask
+   */
+  @Test
+  public void testTaskConfigs() {
+    final int numTaskConfigs = 20;
+    Map<String, String> config = makeConfig();
+    scalyrSinkConnector.start(config);
+    List<Map<String, String>> taskConfigs = scalyrSinkConnector.taskConfigs(numTaskConfigs);
+    assertEquals(numTaskConfigs, taskConfigs.size());
+    taskConfigs.forEach(taskConfig -> TestUtils.verifyMap(config, taskConfig));
+  }
+
+  /**
+   * Verify taskClass returns correct sink task class
+   */
+  @Test
+  public void testTaskClass() {
+    assertEquals(ScalyrSinkTask.class, scalyrSinkConnector.taskClass());
+  }
+
+  /**
+   * Verify config returns correct ConfigDef
+   */
+  @Test public void testConfigDef() {
     assertTrue(scalyrSinkConnector.config().names().containsAll(ScalyrSinkConnectorConfig.configDef().names()));
+  }
+
+  private Map<String, String> makeConfig() {
+    return TestUtils.makeMap(
+      ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, "app.scalyr.com",
+      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123",
+      ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG, "message",
+      ScalyrSinkConnectorConfig.PARSER_CONFIG, "systemLog");
   }
 }

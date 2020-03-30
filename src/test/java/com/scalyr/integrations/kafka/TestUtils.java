@@ -35,4 +35,13 @@ public class TestUtils {
   static List<String> makeList(String commaList) {
     return Arrays.stream(commaList.split(",")).map(String::trim).collect(Collectors.toList());
   }
+
+  /**
+   * Verify two maps contain the same values.
+   */
+  static void verifyMap(Map<String, String> expected, Map<String, String> actual) {
+    assertEquals(expected.size(), actual.size());
+    assertEquals(expected.keySet(), actual.keySet());
+    expected.keySet().forEach(key -> assertEquals(expected.get(key), actual.get(key)));
+  }
 }
