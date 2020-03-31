@@ -53,15 +53,13 @@ public class ScalyrSinkTask extends SinkTask {
   @Override
   public void put(Collection<SinkRecord> records) {
     log.info("put called with {} records", records.size());
-    List<Map<String, Object>> eventsPerSession = ScalyrEventMapper.createEvents(records, sinkConfig);
-    eventsPerSession.forEach(sessionEvents -> {
-      try {
-        addEventsClient.log(sessionEvents);
-      } catch (Exception e) {
-        throw new RetriableException(e);  // Kafka will retry and Scalyr server should dedep based on the offset
-        // TODO: We may need to implement our own retry mechanism
-      }
-    });
+    Map<String, Object> events = ScalyrEventMapper.createEvents(records, sinkConfig);
+    try {
+      addEventsClient.log(events);
+    } catch (Exception e) {
+      throw new RetriableException(e);  // Kafka will retry and Scalyr server should dedep based on the offset
+      // TODO: We may need to implement our own retry mechanism
+    }
   }
 
   /**

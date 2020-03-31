@@ -1,13 +1,11 @@
 package com.scalyr.integrations.kafka;
 
 import com.google.common.annotations.VisibleForTesting;
-import com.google.common.base.Preconditions;
 import com.scalyr.api.internal.ScalyrUtil;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -33,53 +31,27 @@ public class ScalyrEventMapper {
   public static final String PARSER = "parser";
 
   /**
-   * Called by the SinkTask to convert the `Collection<SinkRecord>` into Scalyr addEvents data.
-   * Partitions the sink records into sessions where each session is a {topic, partition}.
-   *
-   * @param records `Collection<SinkRecord>` from `SinkTask.put`
-   * @param config ScalyrSinkConnectorConfig
-   * @return List<Map<String, Object>> where each Map in the List contains the events for a single session.
-   * e.g. [session1Events, session2Events, session3Events].  A separate addEvents POST request should be made for
-   * each item in the list.
-   */
-  public static List<Map<String, Object>> createEvents(Collection<SinkRecord> records, ScalyrSinkConnectorConfig config) {
-    // Organize records by topic and partition = session
-    Map<String, Map<Integer, List<SinkRecord>>> recordsBySession = records.stream()
-      .collect(Collectors.groupingBy(SinkRecord::topic, Collectors.groupingBy(SinkRecord::kafkaPartition)));
-
-    return recordsBySession.values().stream()
-      .flatMap(m -> m.values().stream())  // List<SinkRecord> by partition
-      .map(sessionRecords -> createEventsForSession(sessionRecords, config))
-      .collect(Collectors.toList());
-  }
-
-  /**
-   * Converts Collection<SinkRecord> for a single session to the Scalyr addEvents format.
+   * Called by SinkTask.put to convert the `Collection<SinkRecord>` into Scalyr addEvents data.
    * addEvents format:
    * {
    *   "token":           "xxx",
    *   "session":         "yyy",
-   *   "sessionInfo":     {...}, (optional)
    *   "events":          [...],
    * }
    *
-   * @param records for a single session.  All records must belong to the same {topic, partition}
+   * @param records SinkRecords to convert
    * @param config ScalyrSinkConnectorConfig
-   * @return Map<String, Object> data for a single session, which can be serialized to JSON for addEvents POST call
+   * @return Map<String, Object> data which can be serialized to JSON for addEvents POST call
    */
-  private static Map<String, Object> createEventsForSession(Collection<SinkRecord> records, ScalyrSinkConnectorConfig config) {
+  public static Map<String, Object> createEvents(Collection<SinkRecord> records, ScalyrSinkConnectorConfig config) {
     Map<String, Object> sessionEvents = new HashMap<>();
 
-    SinkRecord record = records.iterator().next();
-    final String sessionId = createSessionId(record.topic(), record.kafkaPartition());
-
     sessionEvents.put(TOKEN, config.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
-    sessionEvents.put(SESSION, sessionId);
+    sessionEvents.put(SESSION, config.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
 
     sessionEvents.put(EVENTS,
       records.stream()
       .map(r -> createEvent(r, config))
-      .peek(event -> Preconditions.checkArgument(sessionId.equals(event.get(SEQUENCE_ID)), "SinkRecords must belong to same session")) // Verify all SinkRecords belong to same session
       .collect(Collectors.toList())
     );
 
@@ -92,8 +64,8 @@ public class ScalyrEventMapper {
    * {
    *   "ts": "event timestamp (nanoseconds since 1/1/1970)",
    *   "si" set to the value of sequence_id.  This identifies which sequence the sequence number belongs to.
-   *       The sequence_id corresponds to the session = {topic, parition}.
-   *   "sn" set to the value of sequence_number.  This is used for deduplication.  This is set to the Kafka offset.
+   *       The sequence_id is the {topic, parition}.
+   *   "sn" set to the value of sequence_number.  This is used for deduplication.  This is set to the Kafka parition offset.
    *   "attrs": {
    *       "parser": parser to use for parsing this event
    *       ... additional log event attributes
@@ -106,9 +78,8 @@ public class ScalyrEventMapper {
   @VisibleForTesting
   static Map<String, Object> createEvent(SinkRecord record, ScalyrSinkConnectorConfig config) {
     Map<String, Object> event = new HashMap<>();
-    final String sessionId = createSessionId(record.topic(), record.kafkaPartition());
 
-    event.put(SEQUENCE_ID, sessionId);
+    event.put(SEQUENCE_ID, createPartitionId(record.topic(), record.kafkaPartition()));
     event.put(SEQUENCE_NUM, record.kafkaOffset());
     event.put(TIMESTAMP, ScalyrUtil.nanoTime());
     event.put(ATTRS, getEventAttrs(record, config));
@@ -138,9 +109,9 @@ public class ScalyrEventMapper {
   }
 
   /**
-   * A session maps to {topic, partition}.
+   * Uniquely identify a partition with {topic name, partition id}.
    */
-  static String createSessionId(String topic, Integer partition) {
+  static String createPartitionId(String topic, Integer partition) {
     return topic + "-" + partition;
   }
 }

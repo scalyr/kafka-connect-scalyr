@@ -12,6 +12,7 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Test ScalyrSinkTask
@@ -56,8 +57,7 @@ public class ScalyrSinkTaskTest {
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
     Map<String, Object> events = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
-    ScalyrEventMapperTest.validateSessionEvents(schemalessRecords, TestUtils.makeList(config.get(ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG)),
-      ScalyrEventMapper.createSessionId(topic, partition), events);
+    ScalyrEventMapperTest.validateEvents(schemalessRecords, new ScalyrSinkConnectorConfig(config), events);
   }
 
   /**
@@ -105,6 +105,7 @@ public class ScalyrSinkTaskTest {
       ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, "http://localhost",
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123",
       ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG, "message",
-      ScalyrSinkConnectorConfig.PARSER_CONFIG, "kafkaParser");
+      ScalyrSinkConnectorConfig.PARSER_CONFIG, "kafkaParser",
+      ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, UUID.randomUUID().toString());
   }
 }
