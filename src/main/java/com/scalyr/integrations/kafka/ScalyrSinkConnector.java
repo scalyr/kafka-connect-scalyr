@@ -4,6 +4,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -33,6 +34,8 @@ public class ScalyrSinkConnector extends SinkConnector {
    * Validate config properties.
    */
   @Override public void start(Map<String, String> configProps) {
+    configProps.putIfAbsent(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, UUID.randomUUID().toString());
+
     // Validate config props
     try {
       new ScalyrSinkConnectorConfig(configProps);

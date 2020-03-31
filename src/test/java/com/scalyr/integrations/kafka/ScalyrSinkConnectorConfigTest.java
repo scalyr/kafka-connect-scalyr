@@ -8,6 +8,7 @@ import org.junit.Test;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
@@ -22,6 +23,7 @@ public class ScalyrSinkConnectorConfigTest {
   private static final String TEST_PARSER = "systemLog";
   private static final String TEST_LOG_FIELDS = "message, host.hostname";
   private static final List<String> TEST_LOG_FIELDS_LIST = TestUtils.makeList(TEST_LOG_FIELDS);
+  private static final String TEST_SESSION_ID = UUID.randomUUID().toString();
 
   /**
    * Test config with all values specified
@@ -32,13 +34,15 @@ public class ScalyrSinkConnectorConfigTest {
       ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, TEST_SCALYR_SERVER,
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY,
       ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG, TEST_LOG_FIELDS,
-      ScalyrSinkConnectorConfig.PARSER_CONFIG, TEST_PARSER);
+      ScalyrSinkConnectorConfig.PARSER_CONFIG, TEST_PARSER,
+      ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, TEST_SESSION_ID);
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(TEST_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
     assertEquals(TEST_LOG_FIELDS_LIST, connectorConfig.getList(ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG));
     assertEquals(TEST_PARSER, connectorConfig.getString(ScalyrSinkConnectorConfig.PARSER_CONFIG));
+    assertEquals(TEST_SESSION_ID, connectorConfig.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
   }
 
   /**
@@ -46,13 +50,16 @@ public class ScalyrSinkConnectorConfigTest {
    */
   @Test
   public void testConfigDefaults() {
-    Map<String, String> config = TestUtils.makeMap(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY);
+    Map<String, String> config = TestUtils.makeMap(
+      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY,
+      ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, TEST_SESSION_ID);
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(ScalyrSinkConnectorConfig.DEFAULT_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
     assertEquals(TestUtils.makeList(ScalyrSinkConnectorConfig.DEFAULT_LOG_FIELDS), connectorConfig.getList(ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG));
     assertEquals(ScalyrSinkConnectorConfig.DEFAULT_PARSER, connectorConfig.getString(ScalyrSinkConnectorConfig.PARSER_CONFIG));
+    assertEquals(TEST_SESSION_ID, connectorConfig.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
   }
 
   /**
@@ -69,8 +76,10 @@ public class ScalyrSinkConnectorConfigTest {
    */
   @Test
   public void testConfigDef() {
+    final ImmutableSet<String> configs = ImmutableSet.of(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, ScalyrSinkConnectorConfig.SCALYR_API_CONFIG,
+      ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG, ScalyrSinkConnectorConfig.PARSER_CONFIG, ScalyrSinkConnectorConfig.SESSION_ID_CONFIG);
     ConfigDef configDef = ScalyrSinkConnectorConfig.configDef();
-    assertTrue(configDef.names().containsAll(ImmutableSet.of(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, ScalyrSinkConnectorConfig.SCALYR_API_CONFIG,
-      ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG, ScalyrSinkConnectorConfig.PARSER_CONFIG)));
+    assertEquals(configs.size(), configDef.names().size());
+    assertTrue(configDef.names().containsAll(configs));
   }
 }
