@@ -115,6 +115,7 @@ public class ScalyrEventMapperTest {
    * Validate Scalyr addEvemts payload has correct format and values
    */
   static void validateEvents(List<SinkRecord> records, ScalyrSinkConnectorConfig config, Map<String, Object> sessionEvents) {
+    assertNotNull(sessionEvents.get(ScalyrEventMapper.SESSION));
     assertEquals(config.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG), sessionEvents.get(ScalyrEventMapper.SESSION));
     assertEquals(config.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(), sessionEvents.get(ScalyrEventMapper.TOKEN));
     List<Map<String, Object>> events = (List)sessionEvents.get(ScalyrEventMapper.EVENTS);

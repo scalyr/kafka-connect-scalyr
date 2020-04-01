@@ -51,15 +51,14 @@ public class ScalyrSinkConnectorConfigTest {
   @Test
   public void testConfigDefaults() {
     Map<String, String> config = TestUtils.makeMap(
-      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY,
-      ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, TEST_SESSION_ID);
+      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY);
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(ScalyrSinkConnectorConfig.DEFAULT_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
     assertEquals(TestUtils.makeList(ScalyrSinkConnectorConfig.DEFAULT_LOG_FIELDS), connectorConfig.getList(ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG));
     assertEquals(ScalyrSinkConnectorConfig.DEFAULT_PARSER, connectorConfig.getString(ScalyrSinkConnectorConfig.PARSER_CONFIG));
-    assertEquals(TEST_SESSION_ID, connectorConfig.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
+    assertEquals(null, connectorConfig.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
   }
 
   /**

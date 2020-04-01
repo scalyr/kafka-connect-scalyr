@@ -41,6 +41,6 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         .define(SCALYR_API_CONFIG, Type.PASSWORD, Importance.HIGH, SCALYR_API_DOC)
         .define(LOG_FIELDS_CONFIG, Type.LIST, DEFAULT_LOG_FIELDS, Importance.HIGH, LOG_FIELDS_DOC)
         .define(PARSER_CONFIG, Type.STRING, DEFAULT_PARSER, Importance.HIGH, PARSER_DOC)
-        .define(SESSION_ID_CONFIG, Type.STRING, Importance.LOW, SESSION_ID_DOC);
+        .define(SESSION_ID_CONFIG, Type.STRING, null, Importance.LOW, SESSION_ID_DOC);
   }
 }

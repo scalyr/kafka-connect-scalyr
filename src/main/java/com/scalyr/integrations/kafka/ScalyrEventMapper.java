@@ -1,6 +1,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.base.Preconditions;
 import com.scalyr.api.internal.ScalyrUtil;
 import org.apache.kafka.connect.sink.SinkRecord;
 
@@ -44,6 +45,8 @@ public class ScalyrEventMapper {
    * @return Map<String, Object> data which can be serialized to JSON for addEvents POST call
    */
   public static Map<String, Object> createEvents(Collection<SinkRecord> records, ScalyrSinkConnectorConfig config) {
+    Preconditions.checkNotNull(config.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
+
     Map<String, Object> sessionEvents = new HashMap<>();
 
     sessionEvents.put(TOKEN, config.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());

@@ -52,7 +52,13 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @Override
   public void put(Collection<SinkRecord> records) {
+    if (records.isEmpty()) {
+      return;
+    }
+
     log.info("put called with {} records", records.size());
+    log.trace("put called with {} records", records);
+
     Map<String, Object> events = ScalyrEventMapper.createEvents(records, sinkConfig);
     try {
       addEventsClient.log(events);

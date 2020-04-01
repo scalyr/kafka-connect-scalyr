@@ -47,6 +47,10 @@ public class AddEventsClient implements AutoCloseable {
    * The events object should only contain events for a single session.
    */
   public void log(Map<String, Object> events) throws Exception {
+    if (log.isTraceEnabled()) {
+      log.trace("Sending addEvents payload {}", objectMapper.writeValueAsString(events));
+    }
+
     httpPost.setEntity(new EntityTemplate(outputStream -> objectMapper.writeValue(outputStream, events)));
     try (CloseableHttpResponse response = client.execute(httpPost)) {
       log.info("post result {}", response.getStatusLine().getStatusCode());

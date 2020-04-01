@@ -34,6 +34,7 @@ public class ScalyrSinkConnector extends SinkConnector {
    * Validate config properties.
    */
   @Override public void start(Map<String, String> configProps) {
+    // Scalyr session id is assigned per Connector instance
     configProps.putIfAbsent(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, UUID.randomUUID().toString());
 
     // Validate config props
