@@ -28,7 +28,6 @@ public class ScalyrEventMapperTest {
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
-  private static final String TEST_LOG_FIELDS = "message, host.name, log.file.path";
   private static final String API_KEY = "abc123";
   private static final String SESSION_ID = UUID.randomUUID().toString();
 
@@ -42,7 +41,6 @@ public class ScalyrEventMapperTest {
   public void setup() {
     Map<String, String> configMap = TestUtils.makeMap(
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, API_KEY,
-      ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG, TEST_LOG_FIELDS,
       ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, SESSION_ID);
 
     config = new ScalyrSinkConnectorConfig(configMap);

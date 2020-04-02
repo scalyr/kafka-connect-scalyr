@@ -105,8 +105,6 @@ public class ScalyrSinkTaskTest {
     return TestUtils.makeMap(
       ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, "http://localhost",
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123",
-      ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG, "message",
-      ScalyrSinkConnectorConfig.PARSER_CONFIG, "kafkaParser",
       ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, UUID.randomUUID().toString());
   }
 }
