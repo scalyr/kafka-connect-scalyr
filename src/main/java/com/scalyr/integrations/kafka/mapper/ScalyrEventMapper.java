@@ -1,19 +1,18 @@
-package com.scalyr.integrations.kafka;
+package com.scalyr.integrations.kafka.mapper;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.scalyr.api.internal.ScalyrUtil;
+import com.scalyr.integrations.kafka.ScalyrSinkConnectorConfig;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
- * Abstraction for converting `Collection<SinkRecord>` from `SinkTask.put` into Scalyr addEvents calls
- * grouped by sessions.  Each session corresponds to a {topic, partition}.
+ * Abstraction for converting `Collection<SinkRecord>` from `SinkTask.put` into Scalyr addEvents calls.
  *
  * Map<String, Object> is used as the data structure to store the addEvents POST call payload for each session.
  * The Map can be serialized into JSON for the POST call.
@@ -29,7 +28,26 @@ public class ScalyrEventMapper {
   public static final String SEQUENCE_NUM = "sn";
   public static final String ATTRS = "attrs";
   public static final String EVENTS = "events";
-  public static final String PARSER = "parser";
+
+  public static final String FILEBEATS_EVENT_MAPPING = "{\"message\" : [\"message\"],\"logfile\": [\"log\", \"file\", \"path\"],"
+    + " \"serverHost\":[\"host\", \"hostname\"], \"parser\":[\"fields\", \"parser\"]};";
+
+
+  /**
+   * Cache of SchemalessEventAttrConverter keyed off the event mapping json.
+   * TODO: Need to also support Schema based converter so keying off the json may not be sufficient
+   */
+  private static final Map<String, EventAttrConverter> eventConverterMap = new HashMap<>();
+
+  /**
+   * Return the SchemalessEventAttrConverter using fields in the record and config to determine which converter to use.
+   * Cache the converter for future use.
+   * TODO: This is currently hard coded to Filebeats.  Need to add support for other types based on the SinkRecord fields and config params.
+   * If a config event mapping is defined, we will always use that one.  Otherwise, we will examine SinkRecord fields to determine which mapping to use.
+   */
+  private static EventAttrConverter getEventAttrConverter(SinkRecord record, ScalyrSinkConnectorConfig config) {
+    return eventConverterMap.computeIfAbsent(FILEBEATS_EVENT_MAPPING, SchemalessEventAttrConverter::new);
+  }
 
   /**
    * Called by SinkTask.put to convert the `Collection<SinkRecord>` into Scalyr addEvents data.
@@ -85,30 +103,9 @@ public class ScalyrEventMapper {
     event.put(SEQUENCE_ID, createPartitionId(record.topic(), record.kafkaPartition()));
     event.put(SEQUENCE_NUM, record.kafkaOffset());
     event.put(TIMESTAMP, ScalyrUtil.nanoTime());
-    event.put(ATTRS, getEventAttrs(record, config));
+    event.put(ATTRS, getEventAttrConverter(record, config).convert(record));
 
     return event;
-  }
-
-  /**
-   * Creates the `attrs` map for the SinkRecord, which are the event attributes for the event.
-   * This typically includes fields such as "message", "parser".
-   * ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG defines the fields from the SinkRecord to include in the `attrs`.
-   *
-   * @param record SinkRecord to create event attrs from
-   * @param config ScalyrSinkConnectorConfig
-   * @return Map<String, Object> attrs
-   */
-  private static Map<String, Object> getEventAttrs(SinkRecord record, ScalyrSinkConnectorConfig config) {
-    Map value = (Map)record.value();
-
-    Map<String, Object> eventAttrs = config.getList(ScalyrSinkConnectorConfig.LOG_FIELDS_CONFIG).stream()
-      .filter(value::containsKey)
-      .collect(Collectors.toMap(Function.identity(), value::get));
-
-    eventAttrs.put(PARSER, config.getString(ScalyrSinkConnectorConfig.PARSER_CONFIG));
-
-    return eventAttrs;
   }
 
   /**

@@ -18,7 +18,7 @@ public class TestUtils {
    * @param keyValuePairs key1, value1, key2, value2, ...
    * @return Map<String, String> containing specified key value pairs.
    */
-  static Map<String, String> makeMap(String... keyValuePairs) {
+  public static Map<String, String> makeMap(String... keyValuePairs) {
     assertEquals("keyValuePairs must be even", 0, keyValuePairs.length % 2);
 
     Map<String, String> configMap = new HashMap<>();
@@ -32,14 +32,14 @@ public class TestUtils {
    * Create a List<String> out of a comma separated String, parsing each comma separated word into a List item.
    * @return List<String> from comma separated String.  e.g. "message, hostname" -> ["message", "hostname"]
    */
-  static List<String> makeList(String commaList) {
+  public static List<String> makeList(String commaList) {
     return Arrays.stream(commaList.split(",")).map(String::trim).collect(Collectors.toList());
   }
 
   /**
    * Verify two maps contain the same values.
    */
-  static void verifyMap(Map<String, String> expected, Map<String, String> actual) {
+  public static void verifyMap(Map<String, String> expected, Map<String, String> actual) {
     assertEquals(expected.size(), actual.size());
     assertEquals(expected.keySet(), actual.keySet());
     expected.keySet().forEach(key -> assertEquals(expected.get(key), actual.get(key)));

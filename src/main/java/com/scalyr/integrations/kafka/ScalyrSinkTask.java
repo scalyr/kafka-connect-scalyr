@@ -1,5 +1,6 @@
 package com.scalyr.integrations.kafka;
 
+import com.scalyr.integrations.kafka.mapper.ScalyrEventMapper;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -9,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
-import java.util.List;
 import java.util.Map;
 
 /**
