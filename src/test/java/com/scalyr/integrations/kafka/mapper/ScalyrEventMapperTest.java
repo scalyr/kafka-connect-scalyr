@@ -60,7 +60,7 @@ public class ScalyrEventMapperTest {
    * Create multiple SinkRecords with the same {topic, partition}.
    */
   @Test
-  public void singleSessionNoSchemaTest() {
+  public void singlePartitionNoSchemaTest() {
     List<SinkRecord> records = IntStream.range(0, 10)
       .mapToObj(i -> new SinkRecord(topic, partition, null, null, null, createSchemalessRecordValue(), offset.getAndIncrement()))
       .collect(Collectors.toList());
@@ -74,7 +74,7 @@ public class ScalyrEventMapperTest {
    * Create SinkRecords for multiple partitions.
    */
   @Test
-  public void multipleSessionNoSchemaTest() {
+  public void multiplePartitionsNoSchemaTest() {
     final int numRecords = 10;
     List<List<SinkRecord>> sinkRecordLists = Stream.of(createSchemalessRecords("topic1", 0, numRecords),
       createSchemalessRecords("topic1", 1, numRecords),
