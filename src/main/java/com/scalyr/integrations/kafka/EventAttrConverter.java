@@ -1,4 +1,4 @@
-package com.scalyr.integrations.kafka.mapper;
+package com.scalyr.integrations.kafka;
 
 import org.apache.kafka.connect.sink.SinkRecord;
 import java.util.Map;

@@ -1,6 +1,5 @@
 package com.scalyr.integrations.kafka;
 
-import com.scalyr.integrations.kafka.mapper.ScalyrEventMapper;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.RetriableException;

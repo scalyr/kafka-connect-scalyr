@@ -1,10 +1,9 @@
-package com.scalyr.integrations.kafka.mapper;
+package com.scalyr.integrations.kafka;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.scalyr.api.internal.ScalyrUtil;
-import com.scalyr.integrations.kafka.ScalyrSinkConnectorConfig;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.util.Collection;

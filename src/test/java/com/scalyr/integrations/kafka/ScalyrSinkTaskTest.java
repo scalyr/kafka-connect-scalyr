@@ -1,7 +1,6 @@
 package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scalyr.integrations.kafka.mapper.ScalyrEventMapperTest;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;

@@ -1,8 +1,6 @@
-package com.scalyr.integrations.kafka.mapper;
+package com.scalyr.integrations.kafka;
 
 import com.scalyr.api.internal.ScalyrUtil;
-import com.scalyr.integrations.kafka.ScalyrSinkConnectorConfig;
-import com.scalyr.integrations.kafka.TestUtils;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
