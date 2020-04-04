@@ -41,6 +41,8 @@ public class ScalyrEventMapperTest {
 
   public static final Map<String, String> recordValuesWithoutLogLevelAttr = getRecordValuesWithoutLogLevelAttr(recordValues);
 
+  private ScalyrEventMapper scalyrEventMapper;
+
   /**
    * Remove log level attributes from the record values.
    */
@@ -56,7 +58,8 @@ public class ScalyrEventMapperTest {
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, API_KEY,
       ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, SESSION_ID);
 
-    config = new ScalyrSinkConnectorConfig(configMap);
+    this.config = new ScalyrSinkConnectorConfig(configMap);
+    this.scalyrEventMapper = new ScalyrEventMapper(this.config);
   }
 
   /**
@@ -69,7 +72,7 @@ public class ScalyrEventMapperTest {
       .mapToObj(i -> new SinkRecord(topic, partition, null, null, null, createSchemalessRecordValue(), offset.getAndIncrement()))
       .collect(Collectors.toList());
 
-    Map<String, Object> sessionEvents = ScalyrEventMapper.createEvents(records, config);
+    Map<String, Object> sessionEvents = scalyrEventMapper.createEvents(records);
     validateEvents(records, config, sessionEvents);
   }
 
@@ -91,7 +94,7 @@ public class ScalyrEventMapperTest {
       .flatMap(i -> sinkRecordLists.stream().map(records -> records.get(i)))
       .collect(Collectors.toList());
 
-    Map<String, Object> events = ScalyrEventMapper.createEvents(allRecords, config);
+    Map<String, Object> events = scalyrEventMapper.createEvents(allRecords);
     validateEvents(allRecords, config, events);
   }
 
@@ -109,7 +112,7 @@ public class ScalyrEventMapperTest {
       .mapToObj(i -> new SinkRecord(topic, partition, null, null, null, createSchemalessRecordValue(numServers, numLogs, numParsers), offset.getAndIncrement()))
       .collect(Collectors.toList());
 
-    Map<String, Object> events = ScalyrEventMapper.createEvents(records, config);
+    Map<String, Object> events = scalyrEventMapper.createEvents(records);
     validateEvents(records, config, events);
   }
 
@@ -141,7 +144,7 @@ public class ScalyrEventMapperTest {
 
     List<Map<String, Object>> events = createEvents(records);
 
-    Map<List<String>, Integer> logLevelAttrs = ScalyrEventMapper.extractLogLevelAttrs(events);
+    Map<List<String>, Integer> logLevelAttrs = scalyrEventMapper.extractLogLevelAttrs(events);
 
     // Verify expected number of log level attrs extracted
     final int numLogAttrs = numServers * numLogFiles * Math.max(numParsers - numLogFiles, 1);
@@ -171,7 +174,7 @@ public class ScalyrEventMapperTest {
 
   /**
    * Test createLogsArray helper
-   * @param logAttrValues Values list corresponding with {@link ScalyrEventMapper.LOG_LEVEL_ATTRS}
+   * @param logAttrValues Values list corresponding with {@link ScalyrEventMapper#LOG_LEVEL_ATTRS}
    */
   private void createLogsArrayTest(List<String> logAttrValues) {
     assertEquals(ScalyrEventMapper.LOG_LEVEL_ATTRS.size(), logAttrValues.size());
@@ -186,7 +189,7 @@ public class ScalyrEventMapperTest {
       .map(i -> ScalyrEventMapper.LOG_LEVEL_ATTRS.get(i))
       .collect(Collectors.toSet());
 
-    List<Map<String, Object>> logsArray = ScalyrEventMapper.createLogsArray(logLevelAttrs);
+    List<Map<String, Object>> logsArray = scalyrEventMapper.createLogsArray(logLevelAttrs);
 
     // Verify createLogsArray results
     logsArray.forEach(m -> {
@@ -205,7 +208,7 @@ public class ScalyrEventMapperTest {
 
   private List<Map<String, Object>> createEvents(List<SinkRecord> records) {
     return records.stream()
-      .map(r -> ScalyrEventMapper.createEvent(r, config))
+      .map(r -> scalyrEventMapper.createEvent(r, config))
       .collect(Collectors.toList());
   }
 

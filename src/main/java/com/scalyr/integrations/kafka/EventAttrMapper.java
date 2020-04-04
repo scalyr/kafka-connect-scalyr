@@ -15,13 +15,19 @@ import java.util.Optional;
  * The format of the JSON definition is {eventAttr: [array of hierarchical keys to value]}
  * e.g. {"message" : ["message"],"logfile": ["log", "file", "path"], "serverHost":["host", "hostname"], "parser":["fields", "parser"]}
  */
-public class SchemalessEventAttrConverter implements EventAttrConverter {
+public class EventAttrMapper {
+
+  public static final String FILEBEATS_EVENT_MAPPING = "{\"message\" : [\"message\"],\"logfile\": [\"log\", \"file\", \"path\"],"
+    + " \"serverHost\":[\"host\", \"hostname\"], \"parser\":[\"fields\", \"parser\"]};";
+
+  // TODO: Currently only Filebeats event mapping is supported.  In the future, additional event mappings will be supported.
   private Map<String, List<String>> eventMapping;
 
-  public SchemalessEventAttrConverter(String eventMappingJson) {
+  public EventAttrMapper() {
+    // Parse event mapping JSON
     ObjectMapper objectMapper = new ObjectMapper();
     try {
-      Map parsedJson = objectMapper.readValue(eventMappingJson, Map.class);
+      Map parsedJson = objectMapper.readValue(FILEBEATS_EVENT_MAPPING, Map.class);
       parsedJson.values().forEach(mappingKeys -> Preconditions.checkArgument(mappingKeys instanceof List));
       eventMapping = (Map<String, List<String>>) parsedJson;
     } catch (JsonProcessingException e) {
@@ -29,7 +35,11 @@ public class SchemalessEventAttrConverter implements EventAttrConverter {
     }
   }
 
-  @Override
+  /**
+   * Create Event attrs from SinkRecord using event mapping
+   * @param record
+   * @return Event attrs
+   */
   public Map<String, Object> convert(SinkRecord record) {
     Map recordValue = (Map)record.value();
 

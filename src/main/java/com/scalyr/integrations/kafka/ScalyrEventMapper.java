@@ -36,26 +36,14 @@ public class ScalyrEventMapper {
   public static final String LOGS = "logs";
   public static final String ID = "id";
 
-  public static final String FILEBEATS_EVENT_MAPPING = "{\"message\" : [\"message\"],\"logfile\": [\"log\", \"file\", \"path\"],"
-    + " \"serverHost\":[\"host\", \"hostname\"], \"parser\":[\"fields\", \"parser\"]};";
-
   @VisibleForTesting static final List<String> LOG_LEVEL_ATTRS = ImmutableList.of("serverHost", "logfile", "parser");
 
+  private final ScalyrSinkConnectorConfig config;
+  private final EventAttrMapper eventAttrMapper;
 
-  /**
-   * Cache of SchemalessEventAttrConverter keyed off the event mapping json.
-   * TODO: Need to also support Schema based converter so keying off the json may not be sufficient
-   */
-  private static final Map<String, EventAttrConverter> eventConverterMap = new HashMap<>();
-
-  /**
-   * Return the SchemalessEventAttrConverter using fields in the record and config to determine which converter to use.
-   * Cache the converter for future use.
-   * TODO: This is currently hard coded to Filebeats.  Need to add support for other types based on the SinkRecord fields and config params.
-   * If a config event mapping is defined, we will always use that one.  Otherwise, we will examine SinkRecord fields to determine which mapping to use.
-   */
-  private static EventAttrConverter getEventAttrConverter(SinkRecord record, ScalyrSinkConnectorConfig config) {
-    return eventConverterMap.computeIfAbsent(FILEBEATS_EVENT_MAPPING, SchemalessEventAttrConverter::new);
+  public ScalyrEventMapper(ScalyrSinkConnectorConfig config) {
+    this.config = config;
+    this.eventAttrMapper = new EventAttrMapper();
   }
 
   /**
@@ -69,10 +57,9 @@ public class ScalyrEventMapper {
    * }
    *
    * @param records SinkRecords to convert
-   * @param config ScalyrSinkConnectorConfig
    * @return Map<String, Object> data which can be serialized to JSON for addEvents POST call
    */
-  public static Map<String, Object> createEvents(Collection<SinkRecord> records, ScalyrSinkConnectorConfig config) {
+  public Map<String, Object> createEvents(Collection<SinkRecord> records) {
     Preconditions.checkNotNull(config.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
 
     Map<String, Object> addEventsPayload = new HashMap<>();
@@ -109,13 +96,13 @@ public class ScalyrEventMapper {
    * @return Map<String, Object> representation of Scalyr event JSON
    */
   @VisibleForTesting
-  static Map<String, Object> createEvent(SinkRecord record, ScalyrSinkConnectorConfig config) {
+  Map<String, Object> createEvent(SinkRecord record, ScalyrSinkConnectorConfig config) {
     Map<String, Object> event = new HashMap<>();
 
     event.put(SEQUENCE_ID, createPartitionId(record.topic(), record.kafkaPartition()));
     event.put(SEQUENCE_NUM, record.kafkaOffset());
     event.put(TIMESTAMP, ScalyrUtil.nanoTime());
-    event.put(ATTRS, getEventAttrConverter(record, config).convert(record));
+    event.put(ATTRS, eventAttrMapper.convert(record));
 
     return event;
   }
@@ -129,7 +116,7 @@ public class ScalyrEventMapper {
    * @return e.g. {["server1", "/var/log/system.log", "systemLog"] : 1, ["server2", "/var/log/system.log", "systemLog"] : 2}
    */
   @VisibleForTesting
-  static Map<List<String>, Integer> extractLogLevelAttrs(List<Map<String, Object>> events) {
+  Map<List<String>, Integer> extractLogLevelAttrs(List<Map<String, Object>> events) {
     Map<List<String>, Integer> logIdMap = new HashMap<>();
     AtomicInteger logIdVender = new AtomicInteger();
     events.stream().forEach(event -> {
@@ -148,7 +135,7 @@ public class ScalyrEventMapper {
    * @return Values for {@link #LOG_LEVEL_ATTRS} in the same order as the {@link #LOG_LEVEL_ATTRS} list.
    * If the attribute does not exist, a null entry is put in the List.
    */
-  private static List<String> extractLogAttr(Map<String, Object> eventAttr) {
+  private List<String> extractLogAttr(Map<String, Object> eventAttr) {
     if (eventAttr == null) {
       return Collections.emptyList();
     }
@@ -164,7 +151,7 @@ public class ScalyrEventMapper {
    * @param logLevelAttrs Map of {@link #LOG_LEVEL_ATTRS} values to log id.
    * @return e.g. [{"id":"1", "attrs": {}}, {"id":"2", "attrs":{}}]
    */
-  @VisibleForTesting static List<Map<String, Object>> createLogsArray(Map<List<String>, Integer> logLevelAttrs) {
+  @VisibleForTesting List<Map<String, Object>> createLogsArray(Map<List<String>, Integer> logLevelAttrs) {
     return logLevelAttrs.entrySet().stream()
       .map(e -> createLogEntry(e.getValue(), e.getKey()))
       .collect(Collectors.toList());
@@ -176,7 +163,7 @@ public class ScalyrEventMapper {
    * @param logAttrValues {@link #LOG_LEVEL_ATTRS} values
    * @return e.g. {"id":"1", "attrs": {}}
    */
-  private static Map<String, Object> createLogEntry(Integer logId, List<String> logAttrValues) {
+  private Map<String, Object> createLogEntry(Integer logId, List<String> logAttrValues) {
     Map<String, Object> logEntry = new HashMap<>();
     logEntry.put(ID, logId.toString());
     logEntry.put(ATTRS, createLogAttr(logAttrValues));
@@ -191,7 +178,7 @@ public class ScalyrEventMapper {
    *                 null List entry means there is not value for the attribute.
    * @return e.g. {"serverHost":"server1", "logfile":"/var/log/system.log", "parser":"systemLog"}
    */
-  private static Map<String, String> createLogAttr(List<String> logAttrs) {
+  private Map<String, String> createLogAttr(List<String> logAttrs) {
     Preconditions.checkArgument(LOG_LEVEL_ATTRS.size() == logAttrs.size());
     return IntStream.range(0, LOG_LEVEL_ATTRS.size())
       .filter(i -> logAttrs.get(i) != null)
