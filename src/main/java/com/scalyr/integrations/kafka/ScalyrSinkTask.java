@@ -17,7 +17,6 @@ import java.util.Map;
  */
 public class ScalyrSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(ScalyrSinkTask.class);
-  private ScalyrSinkConnectorConfig sinkConfig;
   private AddEventsClient addEventsClient;
   private ScalyrEventMapper scalyrEventMapper;
 
@@ -33,7 +32,7 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @Override
   public void start(Map<String, String> configProps) {
-    this.sinkConfig = new ScalyrSinkConnectorConfig(configProps);
+    ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
     this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     this.scalyrEventMapper = new ScalyrEventMapper(sinkConfig);
   }

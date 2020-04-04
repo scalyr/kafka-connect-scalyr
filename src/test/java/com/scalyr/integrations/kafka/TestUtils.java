@@ -1,10 +1,7 @@
 package com.scalyr.integrations.kafka;
 
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 
@@ -26,14 +23,6 @@ public class TestUtils {
       configMap.put(keyValuePairs[i], keyValuePairs[i+1]);
     }
     return configMap;
-  }
-
-  /**
-   * Create a List<String> out of a comma separated String, parsing each comma separated word into a List item.
-   * @return List<String> from comma separated String.  e.g. "message, hostname" -> ["message", "hostname"]
-   */
-  public static List<String> makeList(String commaList) {
-    return Arrays.stream(commaList.split(",")).map(String::trim).collect(Collectors.toList());
   }
 
   /**

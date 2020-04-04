@@ -23,8 +23,6 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
   private static final String SESSION_ID_DOC = "Uniquely identifies the Connector instance, which corresponds with a Scalyr session.  Value is created by the connector and does not need to be specified in the config file.";
 
 
-
-
   public ScalyrSinkConnectorConfig(Map<String, String> parsedConfig) {
     super(configDef(), parsedConfig);
   }

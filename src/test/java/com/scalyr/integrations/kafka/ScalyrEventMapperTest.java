@@ -7,6 +7,7 @@ import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -34,7 +35,7 @@ public class ScalyrEventMapperTest {
   private static final AtomicInteger offset = new AtomicInteger();
   private ScalyrSinkConnectorConfig config;
 
-  private static Random random = new Random();
+  private static final Random random = new Random();
 
   public static final Map<String, String> recordValues = TestUtils.makeMap(
     "message", "Test log message", "logfile", "/var/log/syslog", "serverHost", "server", "parser", "systemLogPST");
@@ -153,10 +154,10 @@ public class ScalyrEventMapperTest {
     // Verify log level attrs are removed for event attrs
     assertTrue(events.stream()
       .map(event -> (Map<String, Object>)event.get(ScalyrEventMapper.ATTRS))
-      .allMatch(attrs -> !attrs.keySet().containsAll(ScalyrEventMapper.LOG_LEVEL_ATTRS)));
+      .noneMatch(attrs -> attrs.keySet().containsAll(ScalyrEventMapper.LOG_LEVEL_ATTRS)));
 
     // Verify all log ids are unique
-    assertEquals(logLevelAttrs.size(), logLevelAttrs.values().stream().collect(Collectors.toSet()).size());
+    assertEquals(logLevelAttrs.size(), new HashSet<>(logLevelAttrs.values()).size());
   }
 
   /**
@@ -206,9 +207,12 @@ public class ScalyrEventMapperTest {
       .collect(Collectors.toSet()).size());
   }
 
+  /**
+   * Create addEvents events from the SinkRecords
+   */
   private List<Map<String, Object>> createEvents(List<SinkRecord> records) {
     return records.stream()
-      .map(r -> scalyrEventMapper.createEvent(r, config))
+      .map(r -> scalyrEventMapper.createEvent(r))
       .collect(Collectors.toList());
   }
 
@@ -292,15 +296,15 @@ public class ScalyrEventMapperTest {
    * Verify maps are the the same.  For String values, verify the actual `startsWith` the expected because
    * a number may be appended to simulate multiple servers, logs, and parsers.
    */
-  private static void verifyMapStringStartsWith(Map<String, String> expected, Map<String, String> actual) {
+  private static void verifyMapStringStartsWith(Map<String, String> expected, Map<String, Object> actual) {
     assertEquals(expected.size(), actual.size());
     assertEquals(expected.keySet(), actual.keySet());
     expected.keySet().forEach(key -> {
-      Object expectedVal = expected.get(key);
+      String expectedVal = expected.get(key);
       Object actualVal = actual.get(key);
 
-      if (expectedVal instanceof String && actualVal instanceof String) {
-        assertTrue(((String) actualVal).startsWith((String)expectedVal));
+      if (actualVal instanceof String) {
+        assertTrue(((String) actualVal).startsWith(expectedVal));
       } else {
         assertEquals(expected.get(key), actual.get(key));
       }

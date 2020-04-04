@@ -69,7 +69,7 @@ public class ScalyrEventMapper {
 
     // Convert SinkRecords to Events
     List<Map<String, Object>> events = records.stream()
-      .map(r -> createEvent(r, config))
+      .map(r -> createEvent(r))
       .collect(Collectors.toList());
     addEventsPayload.put(EVENTS, events);
 
@@ -86,17 +86,16 @@ public class ScalyrEventMapper {
    * {
    *   "ts": "event timestamp (nanoseconds since 1/1/1970)",
    *   "si" set to the value of sequence_id.  This identifies which sequence the sequence number belongs to.
-   *       The sequence_id is the {topic, parition}.
+   *       The sequence_id is the {topic, partition}.
    *   "sn" set to the value of sequence_number.  This is used for deduplication.  This is set to the Kafka parition offset.
-   *   "log" index into logs array for log lovel attributes  // Added in {@link #extractLogLevelAttrs(List)}
+   *   "log" index into logs array for log level attributes  // Added in {@link #extractLogLevelAttrs(List)}
    *   "attrs": {...}
    * }
    * @param record SinkRecord to convert
-   * @param config ScalyrSinkConnectorConfig
    * @return Map<String, Object> representation of Scalyr event JSON
    */
   @VisibleForTesting
-  Map<String, Object> createEvent(SinkRecord record, ScalyrSinkConnectorConfig config) {
+  Map<String, Object> createEvent(SinkRecord record) {
     Map<String, Object> event = new HashMap<>();
 
     event.put(SEQUENCE_ID, createPartitionId(record.topic(), record.kafkaPartition()));
@@ -110,19 +109,21 @@ public class ScalyrEventMapper {
   /**
    * Attributes defined in {@link #LOG_LEVEL_ATTRS} can be extracted to the log file level and not repeated for each event.
    * Mutates the event with the following actions:
-   * 1. Remove these attrs from event.attrs and add a {@link #LOG_ID} that references the log level definition of these attributes.
-   * 2. Add {@link #LOG_ID} attribute which is set to the id of log level attributes in {@link #LOGS} array.
-   * @param events
-   * @return e.g. {["server1", "/var/log/system.log", "systemLog"] : 1, ["server2", "/var/log/system.log", "systemLog"] : 2}
+   * 1. Remove log level attrs from event.attrs
+   * 2. Add {@link #LOG_ID} attribute that references the log level definition of these attributes in {@link #LOGS} array.
+   * @param events All addEvents events
+   * @return Map with key=log level attr value list and value=logId.
+   * e.g. {["server1", "/var/log/system.log", "systemLog"] : 1, ["server2", "/var/log/system.log", "systemLog"] : 2}.
+   * Each unique permutation of the log attr values gets assigned a log id.
    */
   @VisibleForTesting
   Map<List<String>, Integer> extractLogLevelAttrs(List<Map<String, Object>> events) {
     Map<List<String>, Integer> logIdMap = new HashMap<>();
-    AtomicInteger logIdVender = new AtomicInteger();
-    events.stream().forEach(event -> {
+    AtomicInteger logIdVendor = new AtomicInteger();
+    events.forEach(event -> {
       Map<String, Object> eventAttrs = (Map<String, Object>) event.get(ATTRS);
       List<String> logKeys = extractLogAttr(eventAttrs);
-      Integer logId = logIdMap.computeIfAbsent(logKeys, k -> logIdVender.getAndIncrement());
+      Integer logId = logIdMap.computeIfAbsent(logKeys, k -> logIdVendor.getAndIncrement());
       event.put(LOG_ID, logId.toString());
     });
 
@@ -147,7 +148,7 @@ public class ScalyrEventMapper {
   }
 
   /**
-   * Creates the log file entries addEvents {@link #LOGS} field.
+   * Creates the {@link #LOGS} field array.
    * @param logLevelAttrs Map of {@link #LOG_LEVEL_ATTRS} values to log id.
    * @return e.g. [{"id":"1", "attrs": {}}, {"id":"2", "attrs":{}}]
    */
@@ -171,7 +172,7 @@ public class ScalyrEventMapper {
   }
 
   /**
-   * Create logs attrs map for the {@link #LOG_LEVEL_ATTRS} values.
+   * Create attrs map for the {@link #LOG_LEVEL_ATTRS}.
    *
    * @param logAttrs log level attribute values.
    *                 Parallel List to `LOG_LEVEL_ATTRS`.  Contains the values for `LOG_LEVEL_ATTRS` in the same order.

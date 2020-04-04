@@ -6,11 +6,11 @@ import org.apache.kafka.common.config.ConfigException;
 import org.junit.Test;
 
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -49,7 +49,7 @@ public class ScalyrSinkConnectorConfigTest {
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(ScalyrSinkConnectorConfig.DEFAULT_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
-    assertEquals(null, connectorConfig.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
+    assertNull(connectorConfig.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
   }
 
   /**
