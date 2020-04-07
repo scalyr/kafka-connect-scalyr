@@ -18,7 +18,7 @@ import java.util.Optional;
 public class EventAttrMapper {
 
   public static final String FILEBEATS_EVENT_MAPPING = "{\"message\" : [\"message\"],\"logfile\": [\"log\", \"file\", \"path\"],"
-    + " \"serverHost\":[\"host\", \"hostname\"], \"parser\":[\"fields\", \"parser\"]};";
+    + " \"source\":[\"host\", \"hostname\"], \"parser\":[\"fields\", \"parser\"]};";
 
   // TODO: Currently only Filebeats event mapping is supported.  In the future, additional event mappings will be supported.
   private Map<String, List<String>> eventMapping;

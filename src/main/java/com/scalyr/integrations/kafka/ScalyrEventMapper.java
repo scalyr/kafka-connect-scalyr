@@ -36,7 +36,7 @@ public class ScalyrEventMapper {
   public static final String LOGS = "logs";
   public static final String ID = "id";
 
-  @VisibleForTesting static final List<String> LOG_LEVEL_ATTRS = ImmutableList.of("serverHost", "logfile", "parser");
+  @VisibleForTesting static final List<String> LOG_LEVEL_ATTRS = ImmutableList.of("source", "logfile", "parser");
 
   private final ScalyrSinkConnectorConfig config;
   private final EventAttrMapper eventAttrMapper;

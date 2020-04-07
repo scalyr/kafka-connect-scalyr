@@ -38,7 +38,7 @@ public class ScalyrEventMapperTest {
   private static final Random random = new Random();
 
   public static final Map<String, String> recordValues = TestUtils.makeMap(
-    "message", "Test log message", "logfile", "/var/log/syslog", "serverHost", "server", "parser", "systemLogPST");
+    "message", "Test log message", "logfile", "/var/log/syslog", "source", "server", "parser", "systemLogPST");
 
   public static final Map<String, String> recordValuesWithoutLogLevelAttr = getRecordValuesWithoutLogLevelAttr(recordValues);
 
@@ -233,7 +233,7 @@ public class ScalyrEventMapperTest {
 
     Map<String, Object> value = new HashMap<>();
     value.put("message", recordValues.get("message"));
-    value.put("host", TestUtils.makeMap("name", "server1", "hostname", recordValues.get("serverHost") + random.nextInt(numServers)));
+    value.put("host", TestUtils.makeMap("name", "server1", "hostname", recordValues.get("source") + random.nextInt(numServers)));
 
     // nested log file: {log: {file: {path: /var/log/syslog}}};
     final Map<String, Object> file_path = new HashMap<>();
@@ -264,11 +264,9 @@ public class ScalyrEventMapperTest {
     assertNotNull(events);
     assertEquals(records.size(), events.size());
 
-    System.out.println(logsArray);
     Map<String, Object> logIdAttrs = logsArray.stream()
       .collect(Collectors.toMap(m -> (String)m.get(ScalyrEventMapper.ID), m -> m.get(ScalyrEventMapper.ATTRS)));
 
-    System.out.println(logIdAttrs);
     IntStream.range(0, records.size()).forEach(i -> validateEvent(records.get(i), events.get(i), logIdAttrs));
   }
 
