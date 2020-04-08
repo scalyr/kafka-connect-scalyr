@@ -233,7 +233,7 @@ public class ScalyrEventMapperTest {
 
     Map<String, Object> value = new HashMap<>();
     value.put("message", recordValues.get("message"));
-    value.put("host", TestUtils.makeMap("name", "server1", "hostname", recordValues.get("source") + random.nextInt(numServers)));
+    value.put("host", TestUtils.makeMap("hostname", recordValues.get("source") + random.nextInt(numServers)));
 
     // nested log file: {log: {file: {path: /var/log/syslog}}};
     final Map<String, Object> file_path = new HashMap<>();
