@@ -10,7 +10,7 @@
     <name>kafka-connect-scalyr</name>
 
     <properties>
-        <kafka.version>0.10.0.0-cp1</kafka.version>
+        <kafka.version>2.4.1</kafka.version>
         <junit.version>4.12</junit.version>
     </properties>
 

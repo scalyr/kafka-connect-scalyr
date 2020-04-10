@@ -1,5 +1,6 @@
 package com.scalyr.integrations.kafka;
 
+import com.scalyr.integrations.kafka.mapping.ScalyrEventMapper;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -9,7 +10,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Kafka Connect Scalyr Sink Task
@@ -33,8 +36,8 @@ public class ScalyrSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> configProps) {
     ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
-    this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
-    this.scalyrEventMapper = new ScalyrEventMapper(sinkConfig);
+    this.addEventsClient = new AddEventsClient(sinkConfig);
+    this.scalyrEventMapper = new ScalyrEventMapper();
   }
 
   /**
@@ -43,10 +46,6 @@ public class ScalyrSinkTask extends SinkTask {
    * If this operation fails, throw a {@link org.apache.kafka.connect.errors.RetriableException} to
    * indicate that the framework should attempt to retry the same call again. Other exceptions will cause the task to
    * be stopped immediately.
-   *
-   * TODO: May want to do this async and return right away per comment in {@link org.apache.kafka.connect.sink.SinkTask#put}:
-   * Usually this should send the records to the sink asynchronously and immediately return.
-   * This would also be needed if we choose to buffer events before sending.
    *
    * @param records the set of records to send
    */
@@ -59,7 +58,10 @@ public class ScalyrSinkTask extends SinkTask {
     log.info("put called with {} records", records.size());
     log.trace("put called with {} records", records);
 
-    Map<String, Object> events = scalyrEventMapper.createEvents(records);
+    List<Event> events = records.stream()
+      .map(scalyrEventMapper::createEvent)
+      .collect(Collectors.toList());
+
     try {
       addEventsClient.log(events);
     } catch (Exception e) {

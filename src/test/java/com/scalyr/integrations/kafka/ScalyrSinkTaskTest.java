@@ -1,6 +1,8 @@
 package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scalyr.integrations.kafka.mapping.ScalyrEventMapper;
+import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
@@ -8,21 +10,42 @@ import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Test ScalyrSinkTask
  */
+@RunWith(Parameterized.class)
 public class ScalyrSinkTaskTest {
 
   private ScalyrSinkTask scalyrSinkTask;
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
+  private static final int numServers = 5;
+  private static final int numLogFiles = 3;
+  private static final int numParsers = 2;
+
+  private final TriFunction<Integer, Integer, Integer, Object> recordValue;
+  /**
+   * Create test parameters for each SinkRecordValueCreator type.
+   */
+  @Parameterized.Parameters
+  public static Collection<Object[]> testParams() {
+    return TestUtils.multipleRecordValuesTestParams();
+  }
+
+  public ScalyrSinkTaskTest(TriFunction<Integer, Integer, Integer, Object> recordValue) {
+    this.recordValue = recordValue;
+  }
 
   @Before
   public void setup() {
@@ -45,19 +68,24 @@ public class ScalyrSinkTaskTest {
     MockWebServer server = new MockWebServer();
     server.enqueue(new MockResponse().setResponseCode(200));
 
-    Map<String, String> config = createConfig();
-    config.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
-    scalyrSinkTask.start(config);
+    Map<String, String> configMap = createConfig();
+    configMap.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
+    configMap.put(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123");
+    scalyrSinkTask.start(configMap);
 
     // put SinkRecords
-    List<SinkRecord> schemalessRecords = ScalyrEventMapperTest.createSchemalessRecords(topic, partition, 10);
-    scalyrSinkTask.put(schemalessRecords);
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
+    scalyrSinkTask.put(records);
 
     // Verify sink records are sent to addEvents API
+    ScalyrEventMapper eventMapper = new ScalyrEventMapper();
+    List<Event> events = records.stream()
+      .map(eventMapper::createEvent)
+      .collect(Collectors.toList());
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
-    Map<String, Object> events = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
-    ScalyrEventMapperTest.validateEvents(schemalessRecords, new ScalyrSinkConnectorConfig(config), events);
+    Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
+    AddEventsClientTest.validateEvents(events, new ScalyrSinkConnectorConfig(configMap), parsedEvents);
   }
 
   /**
@@ -73,8 +101,8 @@ public class ScalyrSinkTaskTest {
     scalyrSinkTask.start(config);
 
     // put SinkRecords
-    List<SinkRecord> schemalessRecords = ScalyrEventMapperTest.createSchemalessRecords(topic, partition, 10);
-    scalyrSinkTask.put(schemalessRecords);
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, 10, recordValue.apply(numServers, numLogFiles, numParsers));
+    scalyrSinkTask.put(records);
   }
 
 
