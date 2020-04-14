@@ -19,17 +19,17 @@ import java.util.function.Supplier;
 import static org.junit.Assert.assertEquals;
 
 /**
- * Test for ScalyrEventMapper
+ * Test for EventMapper
  */
 @RunWith(Parameterized.class)
-public class ScalyrEventMapperTest {
+public class EventMapperTest {
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
   private static final AtomicInteger offset = new AtomicInteger();
 
   private final Supplier<Object> recordValue;
-  private ScalyrEventMapper scalyrEventMapper;
+  private EventMapper eventMapper;
 
   /**
    * Create test parameters for each SinkRecordValueCreator type.
@@ -39,13 +39,13 @@ public class ScalyrEventMapperTest {
     return TestUtils.singleRecordValueTestParams();
   }
 
-  public ScalyrEventMapperTest(Supplier<Object> recordValue) {
+  public EventMapperTest(Supplier<Object> recordValue) {
     this.recordValue = recordValue;
   }
 
   @Before
   public void setup() {
-    this.scalyrEventMapper = new ScalyrEventMapper();
+    this.eventMapper = new EventMapper();
   }
 
   /**
@@ -57,7 +57,7 @@ public class ScalyrEventMapperTest {
     final long nsFromEpoch = ScalyrUtil.NANOS_PER_SECOND;  // 1 second after epoch
     ScalyrUtil.setCustomTimeNs(nsFromEpoch);
     SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, recordValue.get(), offset.getAndIncrement());
-    Event event = scalyrEventMapper.createEvent(sinkRecord);
+    Event event = eventMapper.createEvent(sinkRecord);
     validateEvent(event);
     assertEquals(nsFromEpoch, event.getTimestamp());
   }
@@ -70,7 +70,7 @@ public class ScalyrEventMapperTest {
     // With timestamp
     final long msSinceEpoch = 60 * 1000;  // 1 minute after epoch
     SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, recordValue.get(), offset.getAndIncrement(), msSinceEpoch, TimestampType.CREATE_TIME);
-    Event event = scalyrEventMapper.createEvent(sinkRecord);
+    Event event = eventMapper.createEvent(sinkRecord);
     validateEvent(event);
     assertEquals(msSinceEpoch * ScalyrUtil.NANOS_PER_MS, event.getTimestamp());
   }
@@ -82,7 +82,7 @@ public class ScalyrEventMapperTest {
   @Test(expected = DataException.class)
   public void noMessageMapperTest() {
     SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, new HashMap<>(), offset.getAndIncrement());
-    scalyrEventMapper.createEvent(sinkRecord);
+    eventMapper.createEvent(sinkRecord);
   }
 
   /**

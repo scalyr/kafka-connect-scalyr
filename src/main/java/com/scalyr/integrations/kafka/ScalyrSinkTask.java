@@ -1,6 +1,6 @@
 package com.scalyr.integrations.kafka;
 
-import com.scalyr.integrations.kafka.mapping.ScalyrEventMapper;
+import com.scalyr.integrations.kafka.mapping.EventMapper;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -21,7 +21,7 @@ import java.util.stream.Collectors;
 public class ScalyrSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(ScalyrSinkTask.class);
   private AddEventsClient addEventsClient;
-  private ScalyrEventMapper scalyrEventMapper;
+  private EventMapper eventMapper;
 
   @Override
   public String version() {
@@ -37,7 +37,7 @@ public class ScalyrSinkTask extends SinkTask {
   public void start(Map<String, String> configProps) {
     ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
     this.addEventsClient = new AddEventsClient(sinkConfig);
-    this.scalyrEventMapper = new ScalyrEventMapper();
+    this.eventMapper = new EventMapper();
   }
 
   /**
@@ -59,7 +59,7 @@ public class ScalyrSinkTask extends SinkTask {
     log.trace("put called with {} records", records);
 
     List<Event> events = records.stream()
-      .map(scalyrEventMapper::createEvent)
+      .map(eventMapper::createEvent)
       .collect(Collectors.toList());
 
     try {

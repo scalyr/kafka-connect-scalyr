@@ -14,7 +14,7 @@ import java.util.Optional;
  * Determines which {@link MessageMapper} to use and maps the SinkRecord to an Event using the
  * MessageMapper.
  */
-public class ScalyrEventMapper {
+public class EventMapper {
 
   private static final List<MessageMapper> messageMappers = ImmutableList.of(new FilebeatMessageMapper());
 

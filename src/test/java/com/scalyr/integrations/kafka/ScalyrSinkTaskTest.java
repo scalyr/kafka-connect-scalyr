@@ -1,7 +1,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scalyr.integrations.kafka.mapping.ScalyrEventMapper;
+import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
@@ -61,7 +61,7 @@ public class ScalyrSinkTaskTest {
   }
 
   /**
-   * End-to-End put test with SinkRecord -> ScalyrEventMapper -> AddEventsClient -> Mock Web Server addEvents API
+   * End-to-End put test with SinkRecord -> EventMapper -> AddEventsClient -> Mock Web Server addEvents API
    */
   @Test
   public void testPut() throws Exception {
@@ -78,7 +78,7 @@ public class ScalyrSinkTaskTest {
     scalyrSinkTask.put(records);
 
     // Verify sink records are sent to addEvents API
-    ScalyrEventMapper eventMapper = new ScalyrEventMapper();
+    EventMapper eventMapper = new EventMapper();
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
