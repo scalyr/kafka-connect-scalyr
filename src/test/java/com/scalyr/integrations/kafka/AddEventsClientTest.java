@@ -280,7 +280,7 @@ public class AddEventsClientTest {
     assertTrue(logIdAttrs.containsKey(logId));
 
     assertEqualsWithNumberConversion(origEvent.getOffset(), event.get(SEQUENCE_NUM));
-    assertTrue((Long)event.get(TIMESTAMP) <= ScalyrUtil.nanoTime());
+    assertTrue(((Number)event.get(TIMESTAMP)).longValue() <= ScalyrUtil.nanoTime());
     Map eventAttrs = (Map) event.get(ATTRS);
     assertEquals(origEvent.getMessage(), eventAttrs.get(MESSAGE));
 

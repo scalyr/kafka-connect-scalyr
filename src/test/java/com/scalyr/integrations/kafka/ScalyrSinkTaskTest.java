@@ -131,7 +131,6 @@ public class ScalyrSinkTaskTest {
   private Map<String, String> createConfig() {
     return TestUtils.makeMap(
       ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, "http://localhost",
-      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123",
-      ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, UUID.randomUUID().toString());
+      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123");
   }
 }

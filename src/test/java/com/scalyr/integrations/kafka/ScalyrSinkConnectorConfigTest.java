@@ -29,13 +29,12 @@ public class ScalyrSinkConnectorConfigTest {
   public void testConfig() {
     Map<String, String> config = TestUtils.makeMap(
       ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, TEST_SCALYR_SERVER,
-      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY,
-      ScalyrSinkConnectorConfig.SESSION_ID_CONFIG, TEST_SESSION_ID);
+      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY);
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(TEST_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
-    assertEquals(TEST_SESSION_ID, connectorConfig.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
+
   }
 
   /**
@@ -49,7 +48,6 @@ public class ScalyrSinkConnectorConfigTest {
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(ScalyrSinkConnectorConfig.DEFAULT_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
-    assertNull(connectorConfig.getString(ScalyrSinkConnectorConfig.SESSION_ID_CONFIG));
   }
 
   /**
@@ -66,8 +64,7 @@ public class ScalyrSinkConnectorConfigTest {
    */
   @Test
   public void testConfigDef() {
-    final ImmutableSet<String> configs = ImmutableSet.of(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, ScalyrSinkConnectorConfig.SCALYR_API_CONFIG,
-      ScalyrSinkConnectorConfig.SESSION_ID_CONFIG);
+    final ImmutableSet<String> configs = ImmutableSet.of(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, ScalyrSinkConnectorConfig.SCALYR_API_CONFIG);
     ConfigDef configDef = ScalyrSinkConnectorConfig.configDef();
     assertEquals(configs.size(), configDef.names().size());
     assertTrue(configDef.names().containsAll(configs));
