@@ -170,7 +170,7 @@ public class AddEventsClient implements AutoCloseable {
    *   "token":   "xxx",
    *   "session": "yyy",
    *   "events":  [...],
-   *   "logs":    [{"id":"1", "attrs":{"serverHost":"", "logfile":"", "parser":""}, {"id":"2", "attrs":{"serverHost":"", "logfile":"", "parser":""}}
+   *   "logs":    [{"id":"1", "attrs":{"serverHost":"", "logfile":"", "parser":""}, {"id":"2", "attrs":{"serverHost":"", "logfile":"", "parser":""}}]
    * }
    */
   public static class AddEventsRequestSerializer extends JsonSerializer<AddEventsRequest> {
@@ -193,7 +193,7 @@ public class AddEventsClient implements AutoCloseable {
     /**
      * Write logs array:
      * "logs":    [{"id":"1", "attrs":{"serverHost":"", "logfile":"", "parser":""}},
-     *             {"id":"2", "attrs":{"serverHost":"", "logfile":"", "parser":""}}
+     *             {"id":"2", "attrs":{"serverHost":"", "logfile":"", "parser":""}}]
      */
     private void writeLogs(JsonGenerator jsonGenerator) throws IOException {
       jsonGenerator.writeArrayFieldStart("logs");
