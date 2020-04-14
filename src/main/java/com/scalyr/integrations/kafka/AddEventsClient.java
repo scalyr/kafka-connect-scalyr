@@ -40,12 +40,14 @@ public class AddEventsClient implements AutoCloseable {
   private static final Logger log = LoggerFactory.getLogger(AddEventsClient.class);
 
   private final CloseableHttpClient client = HttpClients.createDefault();
-  private final ObjectMapper objectMapper = new ObjectMapper();
   private final HttpPost httpPost;
   private final ScalyrSinkConnectorConfig config;
 
   /** Session ID per Task */
   private final String sessionId = UUID.randomUUID().toString();
+
+  private static final String userAgent = "KafkaConnector/" + VersionUtil.getVersion()
+    + " JVM/" + System.getProperty("java.version");
 
   /**
    * @throws ConnectException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
@@ -60,9 +62,7 @@ public class AddEventsClient implements AutoCloseable {
    * Make addEvents POST API call to Scalyr with the events object.
    */
   public void log(List<Event> events) throws Exception {
-    if (log.isTraceEnabled()) {
-      log.trace("Sending addEvents payload {}", objectMapper.writeValueAsString(events));
-    }
+    log.debug("Calling addEvents with {} events", events.size());
 
     AddEventsRequest addEventsRequest = new AddEventsRequest()
       .setSession(sessionId)
@@ -71,7 +71,7 @@ public class AddEventsClient implements AutoCloseable {
 
     httpPost.setEntity(new EntityTemplate(addEventsRequest::writeJson));
     try (CloseableHttpResponse response = client.execute(httpPost)) {
-      log.info("post result {}", response.getStatusLine().getStatusCode());
+      log.debug("post result {}", response.getStatusLine().getStatusCode());
       if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
         throw new RuntimeException("addEvents failed with code " + response.getStatusLine().getStatusCode()
           + ", message " + EntityUtils.toString(response.getEntity()));
@@ -104,7 +104,7 @@ public class AddEventsClient implements AutoCloseable {
     httpPost.addHeader("Content-type", ContentType.APPLICATION_JSON.toString());
     httpPost.addHeader("Accept", ContentType.APPLICATION_JSON.toString());
     httpPost.addHeader("Connection", "Keep-Alive");
-    httpPost.addHeader("User-Agent", "Scalyr-Kafka-Connector");
+    httpPost.addHeader("User-Agent", userAgent);
   }
 
   @Override
@@ -144,7 +144,8 @@ public class AddEventsClient implements AutoCloseable {
      */
     public void writeJson(OutputStream outputStream) throws IOException {
       try {
-        // Assign log ids for the server level event fields
+        // Assign log ids for the server level event fields (server, logfile, parser) permutations.
+        // Same server level event values are mapped to a logs array entry so the same data is not repeated in the events.
         AtomicInteger logId = new AtomicInteger();
         Map<Event, Integer> logIdMapping = new HashMap<>();  // Event is hashed by server fields = log level fields
         events.forEach(event -> logIdMapping.putIfAbsent(event, logId.getAndIncrement()));

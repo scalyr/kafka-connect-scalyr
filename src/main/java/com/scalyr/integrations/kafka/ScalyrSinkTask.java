@@ -55,9 +55,6 @@ public class ScalyrSinkTask extends SinkTask {
       return;
     }
 
-    log.info("put called with {} records", records.size());
-    log.trace("put called with {} records", records);
-
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
@@ -66,7 +63,6 @@ public class ScalyrSinkTask extends SinkTask {
       addEventsClient.log(events);
     } catch (Exception e) {
       throw new RetriableException(e);  // Kafka will retry and Scalyr server should dedep based on the offset
-      // TODO: We may need to implement our own retry mechanism
     }
   }
 

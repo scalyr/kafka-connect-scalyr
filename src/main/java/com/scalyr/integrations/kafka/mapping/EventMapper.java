@@ -36,7 +36,6 @@ public class EventMapper {
       .setMessage(messageMapper.getMessage(record));
   }
 
-
   /**
    * @return MessageMapper for the SinkRecord value
    */

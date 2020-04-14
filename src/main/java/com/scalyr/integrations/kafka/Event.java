@@ -13,9 +13,12 @@ public class Event {
   private int partition;
   private long offset;
 
-  // Server level fields
-  private String logfile;
+  // Server level fields = log level attributes
+  // These field values may be common across many events.
+  // For space efficiency when serializing events, these server level fields are extracted
+  // to a higher log level attributes.  A reference to the log level attribute is introduced in the event.
   private String serverHost;
+  private String logfile;
   private String parser;
 
   // Event level fields
@@ -38,13 +41,13 @@ public class Event {
     return this;
   }
 
-  public Event setLogfile(String logfile) {
-    this.logfile = logfile;
+  public Event setServerHost(String serverHost) {
+    this.serverHost = serverHost;
     return this;
   }
 
-  public Event setServerHost(String serverHost) {
-    this.serverHost = serverHost;
+  public Event setLogfile(String logfile) {
+    this.logfile = logfile;
     return this;
   }
 
@@ -76,12 +79,12 @@ public class Event {
     return offset;
   }
 
-  public String getLogfile() {
-    return logfile;
-  }
-
   public String getServerHost() {
     return serverHost;
+  }
+
+  public String getLogfile() {
+    return logfile;
   }
 
   public String getParser() {

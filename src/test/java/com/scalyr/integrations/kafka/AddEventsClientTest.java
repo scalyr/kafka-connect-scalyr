@@ -13,6 +13,7 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.Before;
 import org.junit.Test;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
@@ -34,24 +35,28 @@ import static org.junit.Assert.assertTrue;
  */
 public class AddEventsClientTest {
 
-  public static final String TOKEN  = "token";
-  public static final String SESSION  = "session";
-  public static final String TIMESTAMP = "ts";
-  public static final String SEQUENCE_ID = "si";
-  public static final String SEQUENCE_NUM = "sn";
-  public static final String ATTRS = "attrs";
-  public static final String EVENTS = "events";
-  public static final String LOG_ID = "log";
-  public static final String LOGS = "logs";
-  public static final String ID = "id";
-  public static final String MESSAGE = "message";
-  public static final String PARSER = "parser";
-  public static final String SERVERHOST = "origin";
-  public static final String LOGFILE = "logfile";
+  private static final String TOKEN  = "token";
+  private static final String SESSION  = "session";
+  private static final String TIMESTAMP = "ts";
+  private static final String SEQUENCE_ID = "si";
+  private static final String SEQUENCE_NUM = "sn";
+  private static final String ATTRS = "attrs";
+  private static final String EVENTS = "events";
+  private static final String LOG_ID = "log";
+  private static final String LOGS = "logs";
+  private static final String ID = "id";
+  private static final String MESSAGE = "message";
+  private static final String PARSER = "parser";
+  private static final String SERVERHOST = "origin";
+  private static final String LOGFILE = "logfile";
 
   private static final int numServers = 5;
   private static final int numLogFiles = 3;
   private static final int numParsers = 2;
+
+  private static final String expectedUserAgent = "KafkaConnector/" + VersionUtil.getVersion()
+    + " JVM/" + System.getProperty("java.version");
+
 
   private MockWebServer server;
   private ScalyrSinkConnectorConfig config;
@@ -108,7 +113,7 @@ public class AddEventsClientTest {
 
     // Verify AddEvents JSON
     ObjectMapper objectMapper = new ObjectMapper();
-    Map<String, Object> parsedEvents = objectMapper.readValue(os.toString(), Map.class);
+    Map<String, Object> parsedEvents = objectMapper.readValue(new ByteArrayInputStream(os.toByteArray()), Map.class);
     validateEvents(events, config, parsedEvents);
   }
 
@@ -226,7 +231,7 @@ public class AddEventsClientTest {
     assertEquals(ContentType.APPLICATION_JSON.toString(), headers.get("Content-type"));
     assertEquals(ContentType.APPLICATION_JSON.toString(), headers.get("Accept"));
     assertEquals("Keep-Alive", headers.get("Connection"));
-    assertEquals("Scalyr-Kafka-Connector", headers.get("User-Agent"));
+    assertEquals(expectedUserAgent, headers.get("User-Agent"));
   }
 
   /**
