@@ -11,13 +11,16 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.fail;
 
 /**
  * Common Utility methods for tests
@@ -113,5 +116,19 @@ public class TestUtils {
       .boxed()
       .map(i -> new SinkRecord(topic, partition, null, null, null, recordValue, offset.getAndIncrement(), ScalyrUtil.currentTimeMillis(), TimestampType.CREATE_TIME))
       .collect(Collectors.toList());
+  }
+
+  public static void fails(Runnable    r, Class<? extends Throwable> expectedType)             { fails(() -> { r.run(); return null; }, expectedType::isInstance); }
+  public static void fails(Callable<?> c, Predicate<Throwable> test) {
+    boolean succeeded = false;
+    try {
+      c.call();
+      succeeded = true;
+    } catch (Throwable t) {
+      if (test != null && !test.test(t)) {
+        throw new RuntimeException("call threw exception (good!), but exception failed check (bad!); (unexpected) exception is: " + t);
+      }
+    }
+    if (succeeded) fail("call should have thrown exception, but did not!");
   }
 }

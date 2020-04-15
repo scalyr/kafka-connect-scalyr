@@ -26,6 +26,8 @@ import java.util.stream.Collectors;
 public class ScalyrSinkTaskTest {
 
   private ScalyrSinkTask scalyrSinkTask;
+  private final Compressor compressor;
+  private final TriFunction<Integer, Integer, Integer, Object> recordValue;
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
@@ -33,7 +35,6 @@ public class ScalyrSinkTaskTest {
   private static final int numLogFiles = 3;
   private static final int numParsers = 2;
 
-  private final TriFunction<Integer, Integer, Integer, Object> recordValue;
   /**
    * Create test parameters for each SinkRecordValueCreator type.
    */
@@ -44,6 +45,7 @@ public class ScalyrSinkTaskTest {
 
   public ScalyrSinkTaskTest(TriFunction<Integer, Integer, Integer, Object> recordValue) {
     this.recordValue = recordValue;
+    this.compressor = CompressorFactory.getCompressor(ScalyrSinkConnectorConfig.DEFAULT_COMPRESSION_TYPE, null);
   }
 
   @Before
@@ -82,7 +84,7 @@ public class ScalyrSinkTaskTest {
       .collect(Collectors.toList());
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
-    Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
+    Map<String, Object> parsedEvents = objectMapper.readValue(compressor.decompressStream(request.getBody().inputStream()), Map.class);
     AddEventsClientTest.validateEvents(events, parsedEvents);
   }
 

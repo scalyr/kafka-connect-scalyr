@@ -22,6 +22,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.scalyr.integrations.kafka.TestUtils.fails;
 import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SUCCESS;
 import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY;
 import static com.scalyr.integrations.kafka.TestValues.API_KEY_VALUE;
@@ -60,12 +61,13 @@ public class AddEventsClientTest {
 
   private MockWebServer server;
   private String scalyrUrl;
-
+  private Compressor compressor;
 
   @Before
   public void setup() {
     server = new MockWebServer();
     scalyrUrl = server.url("/").toString();
+    this.compressor = CompressorFactory.getCompressor(ScalyrSinkConnectorConfig.DEFAULT_COMPRESSION_TYPE, null);
   }
 
   /**
@@ -154,14 +156,14 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsClient.log(events);
 
     // Verify request
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
-    Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
+    Map<String, Object> parsedEvents = objectMapper.readValue(compressor.decompressStream(request.getBody().inputStream()), Map.class);
     validateEvents(events, parsedEvents);
     verifyHeaders(request.getHeaders());
   }
@@ -179,7 +181,7 @@ public class AddEventsClientTest {
 
     // Create and verify addEvents requests
     ObjectMapper objectMapper = new ObjectMapper();
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
     for (int i = 0; i < numRequests; i++) {
       // Create addEvents request
       List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
@@ -187,7 +189,7 @@ public class AddEventsClientTest {
 
       // Verify addEvents request
       RecordedRequest request = server.takeRequest();
-      Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
+      Map<String, Object> parsedEvents = objectMapper.readValue(compressor.decompressStream(request.getBody().inputStream()), Map.class);
       validateEvents(events, parsedEvents);
       verifyHeaders(request.getHeaders());
     }
@@ -202,7 +204,7 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
 
     addEventsClient.log(createTestEvents(1, 1, 1, 1));
   }
@@ -217,19 +219,24 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
 
     addEventsClient.log(createTestEvents(1, 1, 1, 1));
   }
 
 
   /**
-   * ConnectException should be thrown when server url is invalid.  ConnectException makes Kafka Connect terminate the connector task.
+   * Verify URL validation for incorrect and correct URLs
    */
-  @Test(expected = RuntimeException.class)
-  public void testInvalidUrl() {
-    new AddEventsClient("app.scalyr.com", API_KEY_VALUE);
-    // TODO: Add http test in next PR that has fails assertion
+  @Test
+  public void testUrlValidation() {
+    // Invalid
+    fails(() -> new AddEventsClient("app.scalyr.com", API_KEY_VALUE, compressor), IllegalArgumentException.class);
+    fails(() -> new AddEventsClient("http://app.scalyr.com", API_KEY_VALUE, compressor), IllegalArgumentException.class);
+
+    // Valid
+    new AddEventsClient("http://localhost:63232", API_KEY_VALUE, compressor);
+    new AddEventsClient("https://app.scalyr.com", API_KEY_VALUE, compressor);
   }
 
 
@@ -241,6 +248,7 @@ public class AddEventsClientTest {
     assertEquals(ContentType.APPLICATION_JSON.toString(), headers.get("Accept"));
     assertEquals("Keep-Alive", headers.get("Connection"));
     assertEquals(expectedUserAgent, headers.get("User-Agent"));
+    assertEquals(compressor.getContentEncoding(), headers.get("Content-Encoding"));
   }
 
   /**

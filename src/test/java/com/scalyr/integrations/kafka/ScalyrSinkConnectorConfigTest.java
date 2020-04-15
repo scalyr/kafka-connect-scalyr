@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -18,6 +19,8 @@ public class ScalyrSinkConnectorConfigTest {
 
   private static final String TEST_SCALYR_SERVER = "https://test.scalyr.com";
   private static final String TEST_API_KEY = "abcdef123456";
+  private static final String TEST_COMPRESSION_TYPE = "none";
+  private static final String TEST_COMPRESSION_LEVEL = "0";
 
   /**
    * Test config with all values specified
@@ -26,12 +29,15 @@ public class ScalyrSinkConnectorConfigTest {
   public void testConfig() {
     Map<String, String> config = TestUtils.makeMap(
       ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, TEST_SCALYR_SERVER,
-      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY);
+      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY,
+      ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, TEST_COMPRESSION_TYPE,
+      ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG, TEST_COMPRESSION_LEVEL);
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(TEST_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
-
+    assertEquals(TEST_COMPRESSION_TYPE, connectorConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG));
+    assertEquals(Integer.valueOf(TEST_COMPRESSION_LEVEL), connectorConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG));
   }
 
   /**
@@ -45,6 +51,8 @@ public class ScalyrSinkConnectorConfigTest {
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(ScalyrSinkConnectorConfig.DEFAULT_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
+    assertEquals(ScalyrSinkConnectorConfig.DEFAULT_COMPRESSION_TYPE, connectorConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG));
+    assertNull(connectorConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG));
   }
 
   /**
@@ -61,7 +69,8 @@ public class ScalyrSinkConnectorConfigTest {
    */
   @Test
   public void testConfigDef() {
-    final ImmutableSet<String> configs = ImmutableSet.of(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, ScalyrSinkConnectorConfig.SCALYR_API_CONFIG);
+    final ImmutableSet<String> configs = ImmutableSet.of(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, ScalyrSinkConnectorConfig.SCALYR_API_CONFIG,
+      ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG);
     ConfigDef configDef = ScalyrSinkConnectorConfig.configDef();
     assertEquals(configs.size(), configDef.names().size());
     assertTrue(configDef.names().containsAll(configs));

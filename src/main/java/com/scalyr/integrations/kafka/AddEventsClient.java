@@ -43,6 +43,7 @@ public class AddEventsClient implements AutoCloseable {
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final HttpPost httpPost;
   private final String apiKey;
+  private final Compressor compressor;
 
   /** Session ID per Task */
   private final String sessionId = UUID.randomUUID().toString();
@@ -53,10 +54,11 @@ public class AddEventsClient implements AutoCloseable {
   /**
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(String scalyrUrl, String apiKey) {
+  public AddEventsClient(String scalyrUrl, String apiKey, Compressor compressor) {
     this.apiKey = apiKey;
+    this.compressor = compressor;
     this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
-    addHeaders(this.httpPost);
+    addHeaders();
   }
 
   /**
@@ -70,7 +72,7 @@ public class AddEventsClient implements AutoCloseable {
       .setToken(apiKey)
       .setEvents(events);
 
-    httpPost.setEntity(new EntityTemplate(addEventsRequest::writeJson));
+    httpPost.setEntity(new EntityTemplate(outputStream -> addEventsRequest.writeJson(compressor.compressStream(outputStream))));
     try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
       AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
       log.debug("post http code {}, httpResponse {} ", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
@@ -106,11 +108,12 @@ public class AddEventsClient implements AutoCloseable {
   /**
    * Add addEvents POST request headers
    */
-  private void addHeaders(HttpPost httpPost) {
+  private void addHeaders() {
     httpPost.addHeader("Content-type", ContentType.APPLICATION_JSON.toString());
     httpPost.addHeader("Accept", ContentType.APPLICATION_JSON.toString());
     httpPost.addHeader("Connection", "Keep-Alive");
     httpPost.addHeader("User-Agent", userAgent);
+    httpPost.addHeader("Content-Encoding", compressor.getContentEncoding());
   }
 
   @Override
