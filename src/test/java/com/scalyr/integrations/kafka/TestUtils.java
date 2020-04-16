@@ -64,7 +64,7 @@ public class TestUtils {
   private static final List<SinkRecordValueCreator> sinkRecordValueCreators = ImmutableList.of(new FilebeatMessageMapperTest.FilebeatSinkRecordValueCreator());
 
   /**
-   * Create test parameters for each SinkRecordValueCreator type (e.g. Filebeat)
+   * Create test parameters for each SinkRecordValueCreator type
    * that creates a SinkRecord value with the same values for server, logfile, parser.
    * Supplier<Object> that supplies SinkRecord value is returned for the test param.
    */
@@ -78,12 +78,12 @@ public class TestUtils {
   /**
    * Create record value suppliers for schemaless (Map) and schema based (Struct) record values.
    * The record value is always the same for server, logfile, and parser.
-   * TODO: Add schema based record
    * @return Supplier of record value that always has the same values.
    */
   private static Stream<Supplier<Object>> getSingleRecordValueTestParam(SinkRecordValueCreator sinkRecordValueCreator) {
-    Supplier<Object> schemalessRecordValueSupplier = () -> sinkRecordValueCreator.createSchemaless(1, 1, 1);
-    return Stream.of(schemalessRecordValueSupplier);
+    Supplier<Object> schemalessRecordValueSupplier = () -> sinkRecordValueCreator.createSchemalessRecordValue(1, 1, 1);
+    Supplier<Object> schemaRecordValueSupplier = () -> sinkRecordValueCreator.createSchemaRecordValue(1, 1, 1);
+    return Stream.of(schemalessRecordValueSupplier, schemaRecordValueSupplier);
   }
 
   /**
@@ -101,13 +101,15 @@ public class TestUtils {
   /**
    * Create record value function that returns schemaless (Map) and schema based (Struct) record values
    * based on numServers, numLogFiles, numParsers function arguments.
-   * TODO: Add schema based record
    * @return Trifunction<int numServers, int numLogFiles, int numParsers, Object recordValue>.
    */
   private static Stream<TriFunction<Integer, Integer, Integer, Object>> getMultipleRecordValuesTestParam(SinkRecordValueCreator sinkRecordValueCreator) {
     TriFunction<Integer, Integer, Integer, Object> schemalessRecordValueFn =
-      sinkRecordValueCreator::createSchemaless;
-    return Stream.of(schemalessRecordValueFn);
+      sinkRecordValueCreator::createSchemalessRecordValue;
+    TriFunction<Integer, Integer, Integer, Object> schemaRecordValueFn =
+      sinkRecordValueCreator::createSchemaRecordValue;
+
+    return Stream.of(schemalessRecordValueFn, schemaRecordValueFn);
   }
 
   public static List<SinkRecord> createRecords(String topic, int partition, int numRecords, Object recordValue) {
