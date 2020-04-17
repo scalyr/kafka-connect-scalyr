@@ -17,6 +17,7 @@ import java.util.stream.Collectors;
 /**
  * Kafka Connect Scalyr Sink Task
  * Sends SinkRecords to Scalyr using the addEvents API.
+ * A Task instance handles messages from multiple {topic, partition} pairs.
  */
 public class ScalyrSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(ScalyrSinkTask.class);
@@ -36,7 +37,8 @@ public class ScalyrSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> configProps) {
     ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
-    this.addEventsClient = new AddEventsClient(sinkConfig);
+    this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG),
+      sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
     this.eventMapper = new EventMapper();
   }
 

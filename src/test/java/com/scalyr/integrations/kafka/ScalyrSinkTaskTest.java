@@ -3,9 +3,10 @@ package com.scalyr.integrations.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.TestUtils.TriFunction;
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
+import com.scalyr.integrations.kafka.mapping.TestValues;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
@@ -17,7 +18,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 import java.util.stream.Collectors;
 
 /**
@@ -66,11 +66,10 @@ public class ScalyrSinkTaskTest {
   @Test
   public void testPut() throws Exception {
     MockWebServer server = new MockWebServer();
-    server.enqueue(new MockResponse().setResponseCode(200));
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
 
     Map<String, String> configMap = createConfig();
     configMap.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
-    configMap.put(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123");
     scalyrSinkTask.start(configMap);
 
     // put SinkRecords
@@ -85,7 +84,7 @@ public class ScalyrSinkTaskTest {
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
     Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
-    AddEventsClientTest.validateEvents(events, new ScalyrSinkConnectorConfig(configMap), parsedEvents);
+    AddEventsClientTest.validateEvents(events, parsedEvents);
   }
 
   /**
@@ -131,6 +130,6 @@ public class ScalyrSinkTaskTest {
   private Map<String, String> createConfig() {
     return TestUtils.makeMap(
       ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, "http://localhost",
-      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123");
+      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TestValues.API_KEY_VALUE);
   }
 }

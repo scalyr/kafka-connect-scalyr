@@ -7,10 +7,8 @@ import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.UUID;
 
 import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -20,7 +18,6 @@ public class ScalyrSinkConnectorConfigTest {
 
   private static final String TEST_SCALYR_SERVER = "https://test.scalyr.com";
   private static final String TEST_API_KEY = "abcdef123456";
-  private static final String TEST_SESSION_ID = UUID.randomUUID().toString();
 
   /**
    * Test config with all values specified

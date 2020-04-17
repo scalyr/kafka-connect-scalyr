@@ -1,11 +1,13 @@
 package com.scalyr.integrations.kafka;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.core.Version;
 import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.google.common.base.Preconditions;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -14,8 +16,6 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.EntityTemplate;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
-import org.apache.http.util.EntityUtils;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -40,8 +40,9 @@ public class AddEventsClient implements AutoCloseable {
   private static final Logger log = LoggerFactory.getLogger(AddEventsClient.class);
 
   private final CloseableHttpClient client = HttpClients.createDefault();
+  private final ObjectMapper objectMapper = new ObjectMapper();
   private final HttpPost httpPost;
-  private final ScalyrSinkConnectorConfig config;
+  private final String apiKey;
 
   /** Session ID per Task */
   private final String sessionId = UUID.randomUUID().toString();
@@ -50,11 +51,11 @@ public class AddEventsClient implements AutoCloseable {
     + " JVM/" + System.getProperty("java.version");
 
   /**
-   * @throws ConnectException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
+   * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(ScalyrSinkConnectorConfig config) {
-    this.config = config;
-    this.httpPost = new HttpPost(buildAddEventsUri(config.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG)));
+  public AddEventsClient(String scalyrUrl, String apiKey) {
+    this.apiKey = apiKey;
+    this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
     addHeaders(this.httpPost);
   }
 
@@ -66,34 +67,39 @@ public class AddEventsClient implements AutoCloseable {
 
     AddEventsRequest addEventsRequest = new AddEventsRequest()
       .setSession(sessionId)
-      .setToken(config.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value())
+      .setToken(apiKey)
       .setEvents(events);
 
     httpPost.setEntity(new EntityTemplate(addEventsRequest::writeJson));
-    try (CloseableHttpResponse response = client.execute(httpPost)) {
-      log.debug("post result {}", response.getStatusLine().getStatusCode());
-      if (response.getStatusLine().getStatusCode() != HttpStatus.SC_OK) {
-        throw new RuntimeException("addEvents failed with code " + response.getStatusLine().getStatusCode()
-          + ", message " + EntityUtils.toString(response.getEntity()));
+    try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
+      AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
+      log.debug("post http code {}, httpResponse {} ", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
+      if (httpResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK || !AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
+        throw new RuntimeException("addEvents failed with http code " + httpResponse.getStatusLine().getStatusCode()
+          + ", message " + addEventsResponse);
       }
     }
   }
 
+
   /**
-   * Validates url and creates addEvents Scalyr URI
+   * Validates url and creates addEvents Scalyr URL
    * @return Scalyr addEvents URI.  e.g. https://apps.scalyr.com/addEvents
+   * @throws IllegalArgumentException with invalid Scalyr URL
    */
   private URI buildAddEventsUri(String url) {
     try {
       URIBuilder urlBuilder = new URIBuilder(url);
 
-      if (urlBuilder.getScheme() == null || urlBuilder.getHost() == null) {
-        throw new ConnectException("Invalid Scalyr URL: " + url);
-      }
+      // Enforce https for Scalyr connection
+      Preconditions.checkArgument((urlBuilder.getScheme() != null && urlBuilder.getHost() != null)
+        && ((!"localhost".equals(urlBuilder.getHost()) && "https".equals(urlBuilder.getScheme())) || "localhost".equals(urlBuilder.getHost())),
+        "Invalid Scalyr URL: {}", url);
+
       urlBuilder.setPath("addEvents");
       return  urlBuilder.build();
     } catch (URISyntaxException e) {
-      throw new ConnectException(e);
+      throw new IllegalArgumentException(e);
     }
   }
 
@@ -216,7 +222,7 @@ public class AddEventsClient implements AutoCloseable {
       jsonGenerator.writeObjectFieldStart("attrs");
 
       if (event.getServerHost() != null) {
-        jsonGenerator.writeStringField("origin", event.getServerHost());
+        jsonGenerator.writeStringField("source", event.getServerHost());
       }
       if (event.getLogfile() != null) {
         jsonGenerator.writeStringField("logfile", event.getLogfile());
@@ -273,6 +279,43 @@ public class AddEventsClient implements AutoCloseable {
       jsonGenerator.writeObjectFieldStart("attrs");
       jsonGenerator.writeStringField("message", event.getMessage());
       jsonGenerator.writeEndObject();
+    }
+  }
+
+  /**
+   * AddEvents API Response object
+   */
+  @JsonIgnoreProperties(ignoreUnknown = true)  // ignore bytesCharged
+  public static class AddEventsResponse {
+    public static final String SUCCESS = "success";
+
+    private String status;
+    private String message;
+
+    public String getStatus() {
+      return status;
+    }
+
+    public AddEventsResponse setStatus(String status) {
+      this.status = status;
+      return this;
+    }
+
+    public String getMessage() {
+      return message;
+    }
+
+    public AddEventsResponse setMessage(String message) {
+      this.message = message;
+      return this;
+    }
+
+    @Override
+    public String toString() {
+      return "{" +
+        "\"status\":\"" + status + '"' +
+        ", \"message\":\"" + message + '"' +
+        '}';
     }
   }
 }

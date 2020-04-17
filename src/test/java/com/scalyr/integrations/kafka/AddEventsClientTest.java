@@ -4,12 +4,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.TestValues;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsRequest;
-import com.squareup.okhttp.Headers;
-import com.squareup.okhttp.mockwebserver.MockResponse;
-import com.squareup.okhttp.mockwebserver.MockWebServer;
-import com.squareup.okhttp.mockwebserver.RecordedRequest;
+import okhttp3.Headers;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.http.entity.ContentType;
-import org.apache.kafka.connect.errors.ConnectException;
 import org.junit.Before;
 import org.junit.Test;
 
@@ -24,6 +23,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.scalyr.integrations.kafka.mapping.TestValues.ADD_EVENTS_RESPONSE_SUCCESS;
+import static com.scalyr.integrations.kafka.mapping.TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY;
+import static com.scalyr.integrations.kafka.mapping.TestValues.API_KEY_VALUE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
@@ -47,7 +49,7 @@ public class AddEventsClientTest {
   private static final String ID = "id";
   private static final String MESSAGE = "message";
   private static final String PARSER = "parser";
-  private static final String SERVERHOST = "origin";
+  private static final String SERVERHOST = "source";
   private static final String LOGFILE = "logfile";
 
   private static final int numServers = 5;
@@ -57,18 +59,14 @@ public class AddEventsClientTest {
   private static final String expectedUserAgent = "KafkaConnector/" + VersionUtil.getVersion()
     + " JVM/" + System.getProperty("java.version");
 
-
   private MockWebServer server;
-  private ScalyrSinkConnectorConfig config;
+  private String scalyrUrl;
+
 
   @Before
   public void setup() {
     server = new MockWebServer();
-    Map<String, String> configMap = TestUtils.makeMap(
-      ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("/").toString(),
-      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123");
-
-    this.config = new ScalyrSinkConnectorConfig(configMap);
+    scalyrUrl = server.url("/").toString();
   }
 
   /**
@@ -103,7 +101,7 @@ public class AddEventsClientTest {
 
     // Create AddEventsRequest
     AddEventsRequest addEventsRequest = new AddEventsRequest()
-      .setToken(config.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value())
+      .setToken(API_KEY_VALUE)
       .setSession(sessionId)
       .setEvents(events);
 
@@ -114,7 +112,7 @@ public class AddEventsClientTest {
     // Verify AddEvents JSON
     ObjectMapper objectMapper = new ObjectMapper();
     Map<String, Object> parsedEvents = objectMapper.readValue(new ByteArrayInputStream(os.toByteArray()), Map.class);
-    validateEvents(events, config, parsedEvents);
+    validateEvents(events, parsedEvents);
   }
 
   /**
@@ -154,10 +152,10 @@ public class AddEventsClientTest {
     final int numEvents = 10;
 
     // Setup Mock Server
-    server.enqueue(new MockResponse().setResponseCode(200));
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(config);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE);
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsClient.log(events);
 
@@ -165,7 +163,7 @@ public class AddEventsClientTest {
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
     Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
-    validateEvents(events, config, parsedEvents);
+    validateEvents(events, parsedEvents);
     verifyHeaders(request.getHeaders());
   }
 
@@ -178,11 +176,11 @@ public class AddEventsClientTest {
     final int numRequests = 10;
 
     // Setup Mock Server
-    IntStream.range(0, numRequests).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200)));
+    IntStream.range(0, numRequests).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS)));
 
     // Create and verify addEvents requests
     ObjectMapper objectMapper = new ObjectMapper();
-    AddEventsClient addEventsClient = new AddEventsClient(config);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE);
     for (int i = 0; i < numRequests; i++) {
       // Create addEvents request
       List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
@@ -191,7 +189,7 @@ public class AddEventsClientTest {
       // Verify addEvents request
       RecordedRequest request = server.takeRequest();
       Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().readUtf8(), Map.class);
-      validateEvents(events, config, parsedEvents);
+      validateEvents(events, parsedEvents);
       verifyHeaders(request.getHeaders());
     }
   }
@@ -202,27 +200,39 @@ public class AddEventsClientTest {
   @Test(expected = RuntimeException.class)
   public void testBackoffRequest() throws Exception{
     // Setup Mock Server
-    server.enqueue(new MockResponse().setResponseCode(429).setBody("{status: serverTooBusy}"));
+    server.enqueue(new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(config);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE);
 
     addEventsClient.log(createTestEvents(1, 1, 1, 1));
   }
 
   /**
+   * Scalyr server may issue 200 response code with non-success response body.
+   * RuntimeException should be thrown in this case.
+   */
+  @Test(expected = RuntimeException.class)
+  public void testErrorInResponseBody() throws Exception{
+    // Setup Mock Server
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
+
+    // Create addEvents request
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE);
+
+    addEventsClient.log(createTestEvents(1, 1, 1, 1));
+  }
+
+
+  /**
    * ConnectException should be thrown when server url is invalid.  ConnectException makes Kafka Connect terminate the connector task.
    */
-  @Test(expected = ConnectException.class)
+  @Test(expected = RuntimeException.class)
   public void testInvalidUrl() {
-    Map<String, String> config = TestUtils.makeMap(
-      ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, "app.scalyr.com",
-      ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123");
-
-    ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
-
-    new AddEventsClient(connectorConfig);
+    new AddEventsClient("app.scalyr.com", API_KEY_VALUE);
+    // TODO: Add http test in next PR that has fails assertion
   }
+
 
   /**
    * Verify HTTP request headers are set correctly.
@@ -247,7 +257,7 @@ public class AddEventsClientTest {
         return new Event()
           .setTopic(TestValues.TOPIC_VALUE)
           .setPartition(0)
-          .setOffset(1)
+          .setOffset(i)
           .setMessage(TestValues.MESSAGE_VALUE)
           .setParser(TestValues.PARSER_VALUE + logFileNum % numParsers)
           .setLogfile(TestValues.LOGFILE_VALUE + logFileNum)
@@ -260,9 +270,9 @@ public class AddEventsClientTest {
   /**
    * Validate Scalyr addEvents payload has correct format and values
    */
-  public static void validateEvents(List<Event> origEvents, ScalyrSinkConnectorConfig config, Map<String, Object> sessionEvents) {
+  public static void validateEvents(List<Event> origEvents, Map<String, Object> sessionEvents) {
     assertNotNull(sessionEvents.get(SESSION));
-    assertEquals(config.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(), sessionEvents.get(TOKEN));
+    assertEquals(API_KEY_VALUE, sessionEvents.get(TOKEN));
     List<Map<String, Object>> logsArray = (List<Map<String, Object>>)sessionEvents.get(LOGS);
     assertNotNull(logsArray);
     List<Map<String, Object>> events = (List)sessionEvents.get(EVENTS);

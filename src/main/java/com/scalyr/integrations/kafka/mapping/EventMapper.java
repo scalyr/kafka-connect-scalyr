@@ -30,7 +30,7 @@ public class EventMapper {
       .setPartition(record.kafkaPartition())
       .setOffset(record.kafkaOffset())
       .setTimestamp(record.timestamp() != null ? record.timestamp() * ScalyrUtil.NANOS_PER_MS : ScalyrUtil.nanoTime())
-      .setServerHost(messageMapper.getServerHost(record))
+      .setServerHost(messageMapper.getServerHost(record) != null ? messageMapper.getServerHost(record) : record.topic())
       .setLogfile(messageMapper.getLogfile(record))
       .setParser(messageMapper.getParser(record))
       .setMessage(messageMapper.getMessage(record));
