@@ -8,6 +8,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Converts a SinkRecord to a Scalyr Event.
@@ -25,12 +26,21 @@ public class EventMapper {
   public Event createEvent(SinkRecord record) {
     MessageMapper messageMapper = getMessageMapper(record);
 
+    // Supply default for serverHost if null without creating unneeded default Strings
+    Supplier<String> serverHost = () -> {
+      String hostname = messageMapper.getServerHost(record);
+      if (hostname != null) {
+        return hostname;
+      }
+      return "Kafka-" + record.topic();
+    };
+
     return new Event()
       .setTopic(record.topic())
       .setPartition(record.kafkaPartition())
       .setOffset(record.kafkaOffset())
       .setTimestamp(record.timestamp() != null ? record.timestamp() * ScalyrUtil.NANOS_PER_MS : ScalyrUtil.nanoTime())
-      .setServerHost(messageMapper.getServerHost(record) != null ? messageMapper.getServerHost(record) : record.topic())
+      .setServerHost(serverHost.get())
       .setLogfile(messageMapper.getLogfile(record))
       .setParser(messageMapper.getParser(record))
       .setMessage(messageMapper.getMessage(record));
