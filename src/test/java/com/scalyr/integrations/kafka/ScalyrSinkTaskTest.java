@@ -3,7 +3,6 @@ package com.scalyr.integrations.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.TestUtils.TriFunction;
-import com.scalyr.integrations.kafka.mapping.TestValues;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;

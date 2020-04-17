@@ -2,7 +2,6 @@ package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scalyr.api.internal.ScalyrUtil;
-import com.scalyr.integrations.kafka.mapping.TestValues;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsRequest;
 import okhttp3.Headers;
 import okhttp3.mockwebserver.MockResponse;
@@ -23,9 +22,9 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static com.scalyr.integrations.kafka.mapping.TestValues.ADD_EVENTS_RESPONSE_SUCCESS;
-import static com.scalyr.integrations.kafka.mapping.TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY;
-import static com.scalyr.integrations.kafka.mapping.TestValues.API_KEY_VALUE;
+import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SUCCESS;
+import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY;
+import static com.scalyr.integrations.kafka.TestValues.API_KEY_VALUE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;

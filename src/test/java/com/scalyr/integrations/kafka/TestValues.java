@@ -1,8 +1,7 @@
-package com.scalyr.integrations.kafka.mapping;
+package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scalyr.integrations.kafka.AddEventsClient;
 
 /**
  * Values to use for testing

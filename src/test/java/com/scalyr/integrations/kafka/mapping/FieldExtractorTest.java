@@ -1,5 +1,6 @@
 package com.scalyr.integrations.kafka.mapping;
 
+import com.scalyr.integrations.kafka.TestValues;
 import org.apache.kafka.connect.errors.DataException;
 import org.junit.Test;
 

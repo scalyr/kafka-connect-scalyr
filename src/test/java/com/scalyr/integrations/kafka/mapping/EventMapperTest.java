@@ -3,6 +3,7 @@ package com.scalyr.integrations.kafka.mapping;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.Event;
 import com.scalyr.integrations.kafka.TestUtils;
+import com.scalyr.integrations.kafka.TestValues;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
