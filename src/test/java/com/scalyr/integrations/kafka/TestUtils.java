@@ -1,6 +1,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.google.common.collect.ImmutableList;
+import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.FilebeatMessageMapperTest;
 import com.scalyr.integrations.kafka.mapping.SinkRecordValueCreator;
 import org.apache.kafka.common.record.TimestampType;
@@ -110,7 +111,7 @@ public class TestUtils {
     AtomicInteger offset = new AtomicInteger();
     return IntStream.range(0, numRecords)
       .boxed()
-      .map(i -> new SinkRecord(topic, partition, null, null, null, recordValue, offset.getAndIncrement(), System.currentTimeMillis(), TimestampType.CREATE_TIME))
+      .map(i -> new SinkRecord(topic, partition, null, null, null, recordValue, offset.getAndIncrement(), ScalyrUtil.currentTimeMillis(), TimestampType.CREATE_TIME))
       .collect(Collectors.toList());
   }
 }
