@@ -14,8 +14,8 @@ import java.util.zip.InflaterInputStream;
  * Provides factory for getting the compression implementation.
  */
 public class CompressorFactory {
-  private static final String DEFLATE = "deflate";
-  private static final String NONE = "none";
+  public static final String DEFLATE = "deflate";
+  public static final String NONE = "none";
 
   /**
    * Simple factory method for {@link Compressor} implementation for the specified compressionType and compressionLevel.

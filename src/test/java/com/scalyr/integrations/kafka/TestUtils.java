@@ -120,7 +120,20 @@ public class TestUtils {
       .collect(Collectors.toList());
   }
 
-  public static void fails(Runnable    r, Class<? extends Throwable> expectedType)             { fails(() -> { r.run(); return null; }, expectedType::isInstance); }
+  /**
+   * Fails test if Runnable does not throw an Exception or throws an Exception other than the expected exception
+   * @param r Runnable
+   * @param expectedType Expected Exception.class type
+   */
+  public static void fails(Runnable r, Class<? extends Throwable> expectedType) {
+    fails(() -> { r.run(); return null; }, expectedType::isInstance);
+  }
+
+  /**
+   * Fails test if Callable does not throw an Exception or Predicate test for the Throwable fails.
+   * @param c Callable
+   * @param test Predicate to verify Throwable
+   */
   public static void fails(Callable<?> c, Predicate<Throwable> test) {
     boolean succeeded = false;
     try {

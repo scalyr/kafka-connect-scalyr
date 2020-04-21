@@ -21,6 +21,7 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static com.scalyr.integrations.kafka.TestUtils.fails;
 import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SUCCESS;
@@ -67,7 +68,7 @@ public class AddEventsClientTest {
   public void setup() {
     server = new MockWebServer();
     scalyrUrl = server.url("/").toString();
-    this.compressor = CompressorFactory.getCompressor(ScalyrSinkConnectorConfig.DEFAULT_COMPRESSION_TYPE, null);
+    this.compressor = CompressorFactory.getCompressor(CompressorFactory.NONE, null);
   }
 
   /**
@@ -163,7 +164,7 @@ public class AddEventsClientTest {
     // Verify request
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
-    Map<String, Object> parsedEvents = objectMapper.readValue(compressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
+    Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().inputStream(), Map.class);
     validateEvents(events, parsedEvents);
     verifyHeaders(request.getHeaders());
   }
@@ -189,7 +190,7 @@ public class AddEventsClientTest {
 
       // Verify addEvents request
       RecordedRequest request = server.takeRequest();
-      Map<String, Object> parsedEvents = objectMapper.readValue(compressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
+      Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().inputStream(), Map.class);
       validateEvents(events, parsedEvents);
       verifyHeaders(request.getHeaders());
     }
@@ -237,6 +238,44 @@ public class AddEventsClientTest {
     // Valid
     new AddEventsClient("http://localhost:63232", API_KEY_VALUE, compressor);
     new AddEventsClient("https://app.scalyr.com", API_KEY_VALUE, compressor);
+  }
+
+  /**
+   * Test AddEventsRequest with different compression types
+   */
+  @Test
+  public void testCompression() {
+    Stream<String> compressionTypes = Stream.of(CompressorFactory.DEFLATE);
+    compressionTypes.forEach(compressionType -> {
+      compressor = CompressorFactory.getCompressor("deflate", null);
+      testSingleRequestWithCompression();
+    });
+  }
+
+  /**
+   * Create a single addEvents Request and verify the request body and header
+   */
+  private void testSingleRequestWithCompression() {
+    try {
+      final int numEvents = 10;
+
+      // Setup Mock Server
+      server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
+
+      // Create addEvents request
+      AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
+      List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+      addEventsClient.log(events);
+
+      // Verify request
+      ObjectMapper objectMapper = new ObjectMapper();
+      RecordedRequest request = server.takeRequest();
+      Map<String, Object> parsedEvents = objectMapper.readValue(compressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
+      validateEvents(events, parsedEvents);
+      verifyHeaders(request.getHeaders());
+    } catch (Exception e) {
+      throw new RuntimeException(e);
+    }
   }
 
 
