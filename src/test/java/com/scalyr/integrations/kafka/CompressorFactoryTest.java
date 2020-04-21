@@ -38,11 +38,11 @@ public class CompressorFactoryTest {
   public void testDeflate() throws IOException {
     Compressor compressor = CompressorFactory.getCompressor(DEFLATE, null);
     ByteArrayOutputStream compressedOutputStream = new ByteArrayOutputStream();
-    try (OutputStream uncompressedOutputStream = compressor.compressStream(compressedOutputStream)) {
+    try (OutputStream uncompressedOutputStream = compressor.newStreamCompressor(compressedOutputStream)) {
       uncompressedOutputStream.write(testData);
     }
 
-    InputStream decompressedInputStream = compressor.decompressStream(new ByteArrayInputStream(compressedOutputStream.toByteArray()));
+    InputStream decompressedInputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(compressedOutputStream.toByteArray()));
     assertArrayEquals(testData, ByteStreams.toByteArray(decompressedInputStream));
     assertEquals("deflate", compressor.getContentEncoding());
   }
@@ -69,12 +69,12 @@ public class CompressorFactoryTest {
   public void testNoCompression() throws IOException {
     Compressor compressor = CompressorFactory.getCompressor(NONE, 0);
     ByteArrayOutputStream compressedOutputStream = new ByteArrayOutputStream();
-    try (OutputStream uncompressedOutputStream = compressor.compressStream(compressedOutputStream)) {
+    try (OutputStream uncompressedOutputStream = compressor.newStreamCompressor(compressedOutputStream)) {
       uncompressedOutputStream.write(testData);
     }
     assertEquals(testDataSize, compressedOutputStream.size());
 
-    InputStream decompressedInputStream = compressor.decompressStream(new ByteArrayInputStream(compressedOutputStream.toByteArray()));
+    InputStream decompressedInputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(compressedOutputStream.toByteArray()));
     assertArrayEquals(testData, ByteStreams.toByteArray(decompressedInputStream));
     assertEquals("identity", compressor.getContentEncoding());
   }

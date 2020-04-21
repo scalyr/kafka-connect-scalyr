@@ -84,7 +84,7 @@ public class ScalyrSinkTaskTest {
       .collect(Collectors.toList());
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
-    Map<String, Object> parsedEvents = objectMapper.readValue(compressor.decompressStream(request.getBody().inputStream()), Map.class);
+    Map<String, Object> parsedEvents = objectMapper.readValue(compressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
     AddEventsClientTest.validateEvents(events, parsedEvents);
   }
 

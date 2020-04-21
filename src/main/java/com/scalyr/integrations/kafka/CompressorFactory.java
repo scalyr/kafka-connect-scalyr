@@ -47,13 +47,13 @@ public class CompressorFactory {
     }
 
     @Override
-    public OutputStream compressStream(OutputStream out) {
-      return new DeflaterOutputStream(out, new Deflater(compressionLevel));
+    public OutputStream newStreamCompressor(OutputStream baseOutputStream) {
+      return new DeflaterOutputStream(baseOutputStream, new Deflater(compressionLevel));
     }
 
     @Override
-    public InputStream decompressStream(InputStream in) {
-      return new InflaterInputStream(in);
+    public InputStream newStreamDecompressor(InputStream baseInputStream) {
+      return new InflaterInputStream(baseInputStream);
     }
 
     @Override
@@ -67,13 +67,13 @@ public class CompressorFactory {
    */
   private static class NoCompression implements Compressor {
     @Override
-    public OutputStream compressStream(OutputStream out) {
-      return out;
+    public OutputStream newStreamCompressor(OutputStream baseOutputStream) {
+      return baseOutputStream;
     }
 
     @Override
-    public InputStream decompressStream(InputStream in) {
-      return in;
+    public InputStream newStreamDecompressor(InputStream baseInputStream) {
+      return baseInputStream;
     }
 
     @Override

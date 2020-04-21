@@ -163,7 +163,7 @@ public class AddEventsClientTest {
     // Verify request
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
-    Map<String, Object> parsedEvents = objectMapper.readValue(compressor.decompressStream(request.getBody().inputStream()), Map.class);
+    Map<String, Object> parsedEvents = objectMapper.readValue(compressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
     validateEvents(events, parsedEvents);
     verifyHeaders(request.getHeaders());
   }
@@ -189,7 +189,7 @@ public class AddEventsClientTest {
 
       // Verify addEvents request
       RecordedRequest request = server.takeRequest();
-      Map<String, Object> parsedEvents = objectMapper.readValue(compressor.decompressStream(request.getBody().inputStream()), Map.class);
+      Map<String, Object> parsedEvents = objectMapper.readValue(compressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
       validateEvents(events, parsedEvents);
       verifyHeaders(request.getHeaders());
     }

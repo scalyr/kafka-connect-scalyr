@@ -72,7 +72,7 @@ public class AddEventsClient implements AutoCloseable {
       .setToken(apiKey)
       .setEvents(events);
 
-    httpPost.setEntity(new EntityTemplate(outputStream -> addEventsRequest.writeJson(compressor.compressStream(outputStream))));
+    httpPost.setEntity(new EntityTemplate(outputStream -> addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream))));
     try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
       AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
       log.debug("post http code {}, httpResponse {} ", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
