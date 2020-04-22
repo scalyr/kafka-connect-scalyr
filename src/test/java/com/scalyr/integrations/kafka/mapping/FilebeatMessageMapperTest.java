@@ -2,6 +2,9 @@ package com.scalyr.integrations.kafka.mapping;
 
 import com.scalyr.integrations.kafka.TestUtils;
 import com.scalyr.integrations.kafka.TestValues;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.SchemaBuilder;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
@@ -35,11 +38,24 @@ public class FilebeatMessageMapperTest {
   }
 
   /**
-   * Test mapper gets correct values
+   * Test mapper gets correct values for schemaless record value
    */
   @Test
-  public void testFileBeatsMessageMapper() {
-    SinkRecord record = new SinkRecord(topic, partition, null, null, null, sinkRecordValueCreator.createSchemaless(1, 1, 1), offset.getAndIncrement());
+  public void testFileBeatsMessageMapperSchemaless() {
+    SinkRecord record = new SinkRecord(topic, partition, null, null, null, sinkRecordValueCreator.createSchemalessRecordValue(1, 1, 1), offset.getAndIncrement());
+    verifySinkRecord(record);
+  }
+
+  /**
+   * Test mapper gets correct values for schema record value
+   */
+  @Test
+  public void testFileBeatsMessageMapperSchema() {
+    SinkRecord record = new SinkRecord(topic, partition, null, null, null, sinkRecordValueCreator.createSchemaRecordValue(1, 1, 1), offset.getAndIncrement());
+    verifySinkRecord(record);
+  }
+
+  private void verifySinkRecord(SinkRecord record) {
     assertEquals(TestValues.MESSAGE_VALUE, messageMapper.getMessage(record));
     assertEquals(TestValues.LOGFILE_VALUE + "0", messageMapper.getLogfile(record));
     assertEquals(TestValues.PARSER_VALUE + "0", messageMapper.getParser(record));
@@ -65,7 +81,7 @@ public class FilebeatMessageMapperTest {
    */
   public static class FilebeatSinkRecordValueCreator implements SinkRecordValueCreator {
     @Override
-    public Map<String, Object> createSchemaless(int numServers, int numLogFiles, int numParsers) {
+    public Map<String, Object> createSchemalessRecordValue(int numServers, int numLogFiles, int numParsers) {
       assertTrue(numParsers <= numLogFiles);
 
       Map<String, Object> value = new HashMap<>();
@@ -86,6 +102,49 @@ public class FilebeatMessageMapperTest {
 
       // {agent: {type: filebeat}}
       value.put("agent", TestUtils.makeMap("type", "filebeat"));
+
+      return value;
+    }
+
+    /**
+     * @return Struct Test SinkRecord value with Schema
+     */
+    @Override
+    public Struct createSchemaRecordValue(int numServers, int numLogFiles, int numParsers) {
+      assertTrue(numParsers <= numLogFiles);
+
+      final Schema hostSchema = SchemaBuilder.struct().name("host")
+        .field("hostname", Schema.STRING_SCHEMA).build();
+
+      final Schema fileSchema = SchemaBuilder.struct().name("file")
+        .field("path", Schema.STRING_SCHEMA);
+
+      final Schema logSchema = SchemaBuilder.struct().name("log")
+        .field("file", fileSchema);
+
+      final Schema parserSchema = SchemaBuilder.struct().name("parser")
+        .field("parser", Schema.STRING_SCHEMA);
+
+      final Schema agentSchema = SchemaBuilder.struct().name("agent")
+        .field("type", Schema.STRING_SCHEMA);
+
+      // filebeats doesn't support schemas, but we create a schema for filebeats to test schema support with the same data set
+      final Schema filebeatsSchema = SchemaBuilder.struct().name("fileBeats")
+        .field("message", Schema.STRING_SCHEMA)
+        .field("host", hostSchema)
+        .field("log", logSchema)
+        .field("fields", parserSchema)
+        .field("agent", agentSchema)
+        .build();
+
+      Struct value = new Struct(filebeatsSchema);
+      value.put("message", TestValues.MESSAGE_VALUE);
+      value.put("host", new Struct(hostSchema).put("hostname", TestValues.SERVER_VALUE + random.nextInt(numServers)));
+
+      final int logFileNum = random.nextInt(numLogFiles);
+      value.put("log", new Struct(logSchema).put("file", new Struct(fileSchema).put("path", TestValues.LOGFILE_VALUE + logFileNum)));
+      value.put("fields", new Struct(parserSchema).put("parser", TestValues.PARSER_VALUE + logFileNum % numParsers));
+      value.put("agent", new Struct(agentSchema).put("type", "filebeat"));
 
       return value;
     }

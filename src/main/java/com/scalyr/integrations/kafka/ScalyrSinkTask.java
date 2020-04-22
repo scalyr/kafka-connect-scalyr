@@ -38,7 +38,8 @@ public class ScalyrSinkTask extends SinkTask {
   public void start(Map<String, String> configProps) {
     ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
     this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG),
-      sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
+      sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(),
+      CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG), sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)));
     this.eventMapper = new EventMapper();
   }
 
