@@ -203,6 +203,8 @@ public class AddEventsClientTest {
   public void testBackoffRequest() throws Exception{
     // Setup Mock Server
     server.enqueue(new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
+    IntStream.range(0, AddEventsClient.maxRetries).forEach(i -> server.enqueue(new MockResponse().setResponseCode(429).setBody("{status: serverTooBusy}")));
+
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
@@ -217,7 +219,8 @@ public class AddEventsClientTest {
   @Test(expected = RuntimeException.class)
   public void testErrorInResponseBody() throws Exception{
     // Setup Mock Server
-    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
+    IntStream.range(0, AddEventsClient.maxRetries).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY)));
+
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);

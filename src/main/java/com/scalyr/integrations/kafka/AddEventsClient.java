@@ -7,11 +7,15 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.http.HttpStatus;
+import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.EntityTemplate;
 import org.apache.http.impl.client.CloseableHttpClient;
@@ -19,6 +23,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
@@ -27,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -51,6 +57,9 @@ public class AddEventsClient implements AutoCloseable {
   private static final String userAgent = "KafkaConnector/" + VersionUtil.getVersion()
     + " JVM/" + System.getProperty("java.version");
 
+  @VisibleForTesting final static int maxRetries = 3;
+  final int addEventsTimeoutMs = 20_000;
+
   /**
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
@@ -72,14 +81,83 @@ public class AddEventsClient implements AutoCloseable {
       .setToken(apiKey)
       .setEvents(events);
 
-    httpPost.setEntity(new EntityTemplate(outputStream -> addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream))));
-    try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
-      AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
-      log.debug("post http code {}, httpResponse {} ", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
-      if (httpResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK || !AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
-        throw new RuntimeException("addEvents failed with http code " + httpResponse.getStatusLine().getStatusCode()
-          + ", message " + addEventsResponse);
+    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+    addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
+    AddEventsResponse addEventsResponse = addEventsWithRetry(outputStream.toByteArray());
+    if (!AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
+      throw new AddEventsException(addEventsResponse.toString(), addEventsResponse.isRetriable);
+    }
+  }
+
+  /**
+   * Call Scalyr addEvents API with {@link #maxRetries} and {@link #addEventsTimeoutMs} using exponential backoff.
+   * @param addEventsPayload byte[] addEvents payload
+   * @return AddEventsResponse
+   */
+  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload) {
+    long startTimeMs = System.currentTimeMillis();
+    httpPost.setEntity(new ByteArrayEntity(addEventsPayload));
+    int delayTimeMs = 1000;
+    AddEventsResponse addEventsResponse = null;
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+      try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
+        addEventsResponse = parseAddEventsResponse(httpResponse);
+        log.debug("post http code {}, httpResponse {}", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
+        // return if success or not retriable
+        if (AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus()) || !addEventsResponse.isRetriable()) {
+          return addEventsResponse;
+        }
+      } catch (IOException e) {
+        log.warn("Error calling Scalyr addEvents API", e);
+        addEventsResponse = new AddEventsResponse().setStatus("IOException").setMessage(e.toString()).setRetriable(true);
       }
+
+      if (attempt < maxRetries && (System.currentTimeMillis() - startTimeMs + delayTimeMs < addEventsTimeoutMs)) {
+        Uninterruptibles.sleepUninterruptibly(delayTimeMs, TimeUnit.MILLISECONDS);
+        delayTimeMs = delayTimeMs * 2;
+      }
+    }
+
+    return addEventsResponse;
+  }
+
+  /**
+   * Convert httpResponse into AddEventsResponse, handling different error conditions.
+   * @param httpResponse HTTP response from the addEvents call
+   * @return AddEventsResponse
+   */
+  private AddEventsResponse parseAddEventsResponse(CloseableHttpResponse httpResponse) {
+    final int statusCode = httpResponse.getStatusLine().getStatusCode();
+    final long responseLength = httpResponse.getEntity().getContentLength();
+
+    if (responseLength == 0) {
+      log.warn("addEvents received empty response, server may have reset connection.");
+      return new AddEventsResponse().setStatus("emptyResponse").setRetriable(true);
+    }
+
+    if (statusCode == 429) {
+      log.warn("addEvents received \"too busy\" response from server.");
+      return new AddEventsResponse().setStatus("serverTooBusy").setRetriable(true);
+    }
+
+    try {
+      AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
+
+      // Success
+      if (statusCode == HttpStatus.SC_OK && AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
+        return addEventsResponse;
+      }
+
+      if ("error/client/badParam".equals(addEventsResponse.status)) {
+        log.error("addEvents failed due to a bad parameter value.  This may be caused by an invalid write logs api key in the configuration");
+        return addEventsResponse.setRetriable(false);
+      }
+
+      log.warn("addEvents failed with {}", addEventsResponse);
+      return addEventsResponse.setRetriable(true);
+    } catch (IOException e) {
+      log.error("Could not parse addEvents response", e);
+      return new AddEventsResponse().setStatus("parseResponseFailed").setRetriable(true);
     }
   }
 
@@ -294,6 +372,7 @@ public class AddEventsClient implements AutoCloseable {
 
     private String status;
     private String message;
+    private boolean isRetriable = false;
 
     public String getStatus() {
       return status;
@@ -313,12 +392,50 @@ public class AddEventsClient implements AutoCloseable {
       return this;
     }
 
+    /**
+     * @return True if a non-success response is retriable
+     */
+    public boolean isRetriable() {
+      return isRetriable;
+    }
+
+    public AddEventsResponse setRetriable(boolean retriable) {
+      isRetriable = retriable;
+      return this;
+    }
+
     @Override
     public String toString() {
       return "{" +
         "\"status\":\"" + status + '"' +
         ", \"message\":\"" + message + '"' +
         '}';
+    }
+  }
+
+  /**
+   * AddEventsException is thrown when the addEvents API call fails.
+   * It has an `isRetriable` attribute which indicates whether this exception should be retried.
+   * Non-retriable exceptions are client errors such as bad api token, which will continue to fail if retried.
+   */
+  public static class AddEventsException extends RuntimeException {
+    private final boolean isRetriable;
+
+    public AddEventsException(String message, boolean isRetriable) {
+      super(message);
+      this.isRetriable = isRetriable;
+    }
+
+    public AddEventsException(String message, Throwable cause, boolean isRetriable) {
+      super(message, cause);
+      this.isRetriable = isRetriable;
+    }
+
+    /**
+     * @return true if this Exception should be retried.
+     */
+    public boolean isRetriable() {
+      return isRetriable;
     }
   }
 }

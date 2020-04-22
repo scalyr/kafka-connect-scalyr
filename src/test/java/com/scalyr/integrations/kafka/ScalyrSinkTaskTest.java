@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 /**
  * Test ScalyrSinkTask
@@ -92,7 +93,7 @@ public class ScalyrSinkTaskTest {
   @Test(expected = RetriableException.class)
   public void testPutWithBackoff() {
     MockWebServer server = new MockWebServer();
-    server.enqueue(new MockResponse().setResponseCode(429).setBody("{status: serverTooBusy}"));
+    IntStream.range(0, AddEventsClient.maxRetries).forEach(i -> server.enqueue(new MockResponse().setResponseCode(429).setBody("{status: serverTooBusy}")));
 
     Map<String, String> config = createConfig();
     config.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
