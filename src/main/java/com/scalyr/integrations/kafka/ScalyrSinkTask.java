@@ -18,7 +18,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -80,15 +79,35 @@ public class ScalyrSinkTask extends SinkTask {
     }
 
     // Limit number of concurrent requests
-    if (addEventsResponses.size() >= MAX_CURRENT_REQUESTS && !addEventsResponses.get(addEventsResponses.size() - MAX_CURRENT_REQUESTS).isDone()) {
-      throw new RetriableException("Too many queued requests");
-    }
+    enforceConcurrencyLimit();
 
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
 
     addEventsResponses.add(addEventsClient.log(events).whenComplete(this::addError));
+  }
+
+  /**
+   * Enforces that {@link #MAX_CURRENT_REQUESTS} is not exceeded.
+   * Block and wait up to {@link #addEventsTimeoutMs} for add events request to complete
+   * when the number of concurrent requests is exceed.
+   * @throws RetriableException To pause SinkTask partitions when add events does not complete within the timeout.
+   */
+  private void enforceConcurrencyLimit() {
+    if (addEventsResponses.size() < MAX_CURRENT_REQUESTS) {
+      return;
+    }
+
+    CompletableFuture<AddEventsResponse> addEventsFuture = addEventsResponses.get(addEventsResponses.size() - MAX_CURRENT_REQUESTS);
+    if (!addEventsFuture.isDone()) {
+      try {
+        addEventsFuture.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
+      } catch (Exception e) {
+        log.warn("Timeout or error enforcing addEvents concurrency limit", e);
+        throw new RetriableException("addEvents concurrency limit", e);
+      }
+    }
   }
 
   /**
