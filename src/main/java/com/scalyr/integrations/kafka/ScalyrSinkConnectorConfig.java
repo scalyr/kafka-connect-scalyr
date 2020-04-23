@@ -24,6 +24,8 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
   private static final String COMPRESSION_TYPE_DOC = "Compression type to use for sending log events.  Valid values are: deflate, none";
   public static final String COMPRESSION_LEVEL_CONFIG = "compression_level";
   private static final String COMPRESSION_LEVEL_DOC = "Compression level for the compression_type.  Valid values depend on the compression_type.  Default will be used if not specified.";
+  public static final String ADD_EVENTS_TIMEOUT_MS_CONFIG = "add_events_timeout_ms";
+  private static final String ADD_EVENTS_TIMEOUT_MS_DOC = "Timeout in milliseconds for Scalyr add events call.";
 
   public ScalyrSinkConnectorConfig(Map<String, String> parsedConfig) {
     super(configDef(), parsedConfig);
@@ -34,6 +36,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         .define(SCALYR_SERVER_CONFIG, Type.STRING, DEFAULT_SCALYR_SERVER, Importance.HIGH, SCALYR_SERVER_DOC)
         .define(SCALYR_API_CONFIG, Type.PASSWORD, Importance.HIGH, SCALYR_API_DOC)
         .define(COMPRESSION_TYPE_CONFIG,  Type.STRING, DEFAULT_COMPRESSION_TYPE, Importance.LOW, COMPRESSION_TYPE_DOC)
-        .define(COMPRESSION_LEVEL_CONFIG, Type.INT, null, Importance.LOW, COMPRESSION_LEVEL_DOC);
+        .define(COMPRESSION_LEVEL_CONFIG, Type.INT, null, Importance.LOW, COMPRESSION_LEVEL_DOC)
+        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.LONG, 20_000, Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC);
   }
 }

@@ -26,9 +26,10 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.scalyr.integrations.kafka.TestUtils.fails;
-import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SUCCESS;
-import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY;
 import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM;
+import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY;
+import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SUCCESS;
+import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_TIMEOUT_MS;
 import static com.scalyr.integrations.kafka.TestValues.API_KEY_VALUE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -160,7 +161,7 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsClient.log(events);
 
@@ -185,7 +186,7 @@ public class AddEventsClientTest {
 
     // Create and verify addEvents requests
     ObjectMapper objectMapper = new ObjectMapper();
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
     for (int i = 0; i < numRequests; i++) {
       // Create addEvents request
       List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
@@ -204,7 +205,7 @@ public class AddEventsClientTest {
    */
   @Test
   public void testAddEventsClientErrors() throws Exception {
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
 
     // Server Too Busy
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
@@ -222,7 +223,7 @@ public class AddEventsClientTest {
     assertEquals("emptyResponse", addEventsResponse.getStatus());
 
     // IOException
-    addEventsClient = new AddEventsClient("http://localhost", API_KEY_VALUE, compressor);
+    addEventsClient = new AddEventsClient("http://localhost", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
     addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
     assertEquals("IOException", addEventsResponse.getStatus());
   }
@@ -233,12 +234,12 @@ public class AddEventsClientTest {
   @Test
   public void testUrlValidation() {
     // Invalid
-    fails(() -> new AddEventsClient("app.scalyr.com", API_KEY_VALUE, compressor), IllegalArgumentException.class);
-    fails(() -> new AddEventsClient("http://app.scalyr.com", API_KEY_VALUE, compressor), IllegalArgumentException.class);
+    fails(() -> new AddEventsClient("app.scalyr.com", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor), IllegalArgumentException.class);
+    fails(() -> new AddEventsClient("http://app.scalyr.com", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor), IllegalArgumentException.class);
 
     // Valid
-    new AddEventsClient("http://localhost:63232", API_KEY_VALUE, compressor);
-    new AddEventsClient("https://app.scalyr.com", API_KEY_VALUE, compressor);
+    new AddEventsClient("http://localhost:63232", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
+    new AddEventsClient("https://app.scalyr.com", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
   }
 
   /**
@@ -264,7 +265,7 @@ public class AddEventsClientTest {
       server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
       // Create addEvents request
-      AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
+      AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
       List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
       addEventsClient.log(events);
 

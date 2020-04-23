@@ -60,13 +60,14 @@ public class AddEventsClient implements AutoCloseable {
     + " JVM/" + System.getProperty("java.version");
 
   @VisibleForTesting final static int maxRetries = 3;
-  final int addEventsTimeoutMs = 20_000;
+  final long addEventsTimeoutMs;
 
   /**
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(String scalyrUrl, String apiKey, Compressor compressor) {
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, Compressor compressor) {
     this.apiKey = apiKey;
+    this.addEventsTimeoutMs = addEventsTimeoutMs;
     this.compressor = compressor;
     this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
     addHeaders();

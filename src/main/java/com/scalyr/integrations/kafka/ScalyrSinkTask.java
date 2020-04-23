@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 /**
@@ -29,7 +30,7 @@ public class ScalyrSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(ScalyrSinkTask.class);
   private AddEventsClient addEventsClient;
   private EventMapper eventMapper;
-  private final long addEventsTimeoutMs = 20_000;
+  private long addEventsTimeoutMs;
   private static final int MAX_CURRENT_REQUESTS = 2;
 
   private final List<CompletableFuture<AddEventsResponse>> addEventsResponses = new ArrayList<>();
@@ -48,8 +49,9 @@ public class ScalyrSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> configProps) {
     ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
+    this.addEventsTimeoutMs = sinkConfig.getLong(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG);
     this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG),
-      sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(),
+      sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(), addEventsTimeoutMs,
       CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG), sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)));
     this.eventMapper = new EventMapper();
   }

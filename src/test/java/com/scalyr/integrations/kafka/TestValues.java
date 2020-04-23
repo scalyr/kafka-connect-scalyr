@@ -13,6 +13,7 @@ public abstract class TestValues {
   public static final String SERVER_VALUE = "server";
   public static final String PARSER_VALUE = "systemLogPST";
   public static final String API_KEY_VALUE = "abc123";
+  public static final long ADD_EVENTS_TIMEOUT_MS = 20_000;
 
   public static final String ADD_EVENTS_RESPONSE_SUCCESS;
   public static final String ADD_EVENTS_RESPONSE_SERVER_BUSY;
