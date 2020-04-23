@@ -16,6 +16,7 @@ public abstract class TestValues {
 
   public static final String ADD_EVENTS_RESPONSE_SUCCESS;
   public static final String ADD_EVENTS_RESPONSE_SERVER_BUSY;
+  public static final String ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM;
 
   static {
     // AddEventsResponse response messages
@@ -25,6 +26,9 @@ public abstract class TestValues {
         .setStatus(AddEventsClient.AddEventsResponse.SUCCESS).setMessage(AddEventsClient.AddEventsResponse.SUCCESS));
       ADD_EVENTS_RESPONSE_SERVER_BUSY = objectMapper.writeValueAsString(new AddEventsClient.AddEventsResponse()
         .setStatus("error/server/busy").setMessage("Requests are throttled.  Try again later"));
+      ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM = objectMapper.writeValueAsString(new AddEventsClient.AddEventsResponse()
+        .setStatus("error/client/badParam").setMessage("Maybe caused by bad api key"));
+
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }

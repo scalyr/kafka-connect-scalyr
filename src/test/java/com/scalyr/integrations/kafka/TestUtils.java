@@ -4,6 +4,8 @@ import com.google.common.collect.ImmutableList;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.FilebeatMessageMapperTest;
 import com.scalyr.integrations.kafka.mapping.SinkRecordValueCreator;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.sink.SinkRecord;
 
@@ -145,5 +147,12 @@ public class TestUtils {
       }
     }
     if (succeeded) fail("call should have thrown exception, but did not!");
+  }
+
+  /**
+   * AddEventsClient performs retries on failure.  Enqueue `maxRetries` MockResponse to the server.
+   */
+  public static void addMockResponseWithRetries(MockWebServer server, MockResponse mockResponse) {
+    IntStream.range(0, AddEventsClient.maxRetries).forEach(i -> server.enqueue(mockResponse));
   }
 }

@@ -6,6 +6,7 @@ import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
@@ -17,8 +18,11 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static com.scalyr.integrations.kafka.TestUtils.fails;
 
 /**
  * Test ScalyrSinkTask
@@ -66,11 +70,21 @@ public class ScalyrSinkTaskTest {
   @Test
   public void testPut() throws Exception {
     MockWebServer server = new MockWebServer();
-    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
 
+    startTask(server);
+
+    // put SinkRecords
+    putAndVerifyRecords(server);
+  }
+
+  private void startTask(MockWebServer server) {
     Map<String, String> configMap = createConfig();
     configMap.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
     scalyrSinkTask.start(configMap);
+  }
+
+  private void putAndVerifyRecords(MockWebServer server) throws InterruptedException, java.io.IOException {
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
 
     // put SinkRecords
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
@@ -88,22 +102,91 @@ public class ScalyrSinkTaskTest {
   }
 
   /**
-   * Verify RetriableException is thrown when Scalyr server returns non-200
+   * Verify multiple cycles of puts followed by flush work as expected.
+   */
+  @Test
+  public void testPutFlushCycles() throws Exception {
+    final int numCycles = 5;  // cycle = multiple puts followed by a flush
+    final int numPuts = 10;
+    MockWebServer server = new MockWebServer();
+
+    startTask(server);
+
+    for (int cycle = 0; cycle < numCycles; cycle++) {
+      for (int put = 0; put < numPuts; put++) {
+        putAndVerifyRecords(server);
+      }
+      scalyrSinkTask.flush(new HashMap<>());
+    }
+  }
+
+  /**
+   * Verify exception is thrown when concurrency limit is exceeded
    */
   @Test(expected = RetriableException.class)
-  public void testPutWithBackoff() {
+  public void testMaxConcurrentRequestsExceeded() {
+    final int concurrencyLimit = 3;
     MockWebServer server = new MockWebServer();
-    IntStream.range(0, AddEventsClient.maxRetries).forEach(i -> server.enqueue(new MockResponse().setResponseCode(429).setBody("{status: serverTooBusy}")));
+    startTask(server);
 
-    Map<String, String> config = createConfig();
-    config.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
-    scalyrSinkTask.start(config);
+    // MockWebServer response with delay
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)
+      .setHeadersDelay(3, TimeUnit.SECONDS));
+
+    IntStream.range(0, concurrencyLimit).forEach(i -> {
+      List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
+      scalyrSinkTask.put(records);
+    });
+  }
+
+  /**
+   * Tests the following error logic:
+   * 1. put returns errors for all requests after an error has occurred
+   * 2. flush clears the errors
+   * 3. Subsequent puts succeed
+   */
+  @Test
+  public void testPutErrorHandling() {
+    final int numRequests = 3;
+    MockWebServer server = new MockWebServer();
+    startTask(server);
+
+    // Error first request
+    TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY));
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
+    scalyrSinkTask.put(records);
+    scalyrSinkTask.waitForRequestsToComplete();
+
+    // Additional requests should have errors
+    IntStream.range(0, numRequests).forEach(i -> {
+      fails(() -> scalyrSinkTask.put(records), RetriableException.class);
+    });
+
+    // Flush throws exception and clears errors
+    fails(() -> scalyrSinkTask.flush(new HashMap<>()), RetriableException.class);
+
+    // Subsequent requests should succeed
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+    scalyrSinkTask.put(records);
+  }
+
+
+  /**
+   * Verify ConnectException is thrown when server return client bad param.
+   * ConnectException will stop this Task.
+   */
+  @Test
+  public void testBadClientParam() {
+    MockWebServer server = new MockWebServer();
+    TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM));
+
+    startTask(server);
 
     // put SinkRecords
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, 10, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
+    fails(() -> {scalyrSinkTask.flush(new HashMap<>()); return null;}, t -> t instanceof ConnectException && !(t instanceof RetriableException));
   }
-
 
   /**
    * Currently flush does nothing.

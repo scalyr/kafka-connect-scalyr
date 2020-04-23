@@ -3,6 +3,7 @@ package com.scalyr.integrations.kafka;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsRequest;
+import com.scalyr.integrations.kafka.AddEventsClient.AddEventsResponse;
 import okhttp3.Headers;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
@@ -19,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -26,6 +28,7 @@ import java.util.stream.Stream;
 import static com.scalyr.integrations.kafka.TestUtils.fails;
 import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SUCCESS;
 import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY;
+import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM;
 import static com.scalyr.integrations.kafka.TestValues.API_KEY_VALUE;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -197,37 +200,32 @@ public class AddEventsClientTest {
   }
 
   /**
-   * RuntimeException should be thrown when non-200 response code is returned
+   * Verify AddEventsResponse contains correct errors
    */
-  @Test(expected = RuntimeException.class)
-  public void testBackoffRequest() throws Exception{
-    // Setup Mock Server
-    server.enqueue(new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
-    IntStream.range(0, AddEventsClient.maxRetries).forEach(i -> server.enqueue(new MockResponse().setResponseCode(429).setBody("{status: serverTooBusy}")));
-
-
-    // Create addEvents request
+  @Test
+  public void testAddEventsClientErrors() throws Exception {
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
 
-    addEventsClient.log(createTestEvents(1, 1, 1, 1));
+    // Server Too Busy
+    TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
+    AddEventsResponse addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
+    assertEquals("serverTooBusy", addEventsResponse.getStatus());
+
+    // Client Bad Request
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM));
+    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
+    assertEquals(AddEventsResponse.CLIENT_BAD_PARAM, addEventsResponse.getStatus());
+
+    // Empty Response
+    TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(200).setBody(""));
+    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
+    assertEquals("emptyResponse", addEventsResponse.getStatus());
+
+    // IOException
+    addEventsClient = new AddEventsClient("http://localhost", API_KEY_VALUE, compressor);
+    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
+    assertEquals("IOException", addEventsResponse.getStatus());
   }
-
-  /**
-   * Scalyr server may issue 200 response code with non-success response body.
-   * RuntimeException should be thrown in this case.
-   */
-  @Test(expected = RuntimeException.class)
-  public void testErrorInResponseBody() throws Exception{
-    // Setup Mock Server
-    IntStream.range(0, AddEventsClient.maxRetries).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY)));
-
-
-    // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, compressor);
-
-    addEventsClient.log(createTestEvents(1, 1, 1, 1));
-  }
-
 
   /**
    * Verify URL validation for incorrect and correct URLs

@@ -11,13 +11,11 @@ import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Uninterruptibles;
 import org.apache.http.HttpStatus;
-import org.apache.http.client.ClientProtocolException;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.EntityTemplate;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
@@ -32,6 +30,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -47,6 +48,7 @@ public class AddEventsClient implements AutoCloseable {
 
   private final CloseableHttpClient client = HttpClients.createDefault();
   private final ObjectMapper objectMapper = new ObjectMapper();
+  private final ExecutorService executorService = Executors.newSingleThreadExecutor();
   private final HttpPost httpPost;
   private final String apiKey;
   private final Compressor compressor;
@@ -71,21 +73,23 @@ public class AddEventsClient implements AutoCloseable {
   }
 
   /**
-   * Make addEvents POST API call to Scalyr with the events object.
+   * Make async addEvents POST API call to Scalyr with the events object.
    */
-  public void log(List<Event> events) throws Exception {
+  public CompletableFuture<AddEventsResponse> log(List<Event> events) {
     log.debug("Calling addEvents with {} events", events.size());
+    try {
+      AddEventsRequest addEventsRequest = new AddEventsRequest()
+        .setSession(sessionId)
+        .setToken(apiKey)
+        .setEvents(events);
 
-    AddEventsRequest addEventsRequest = new AddEventsRequest()
-      .setSession(sessionId)
-      .setToken(apiKey)
-      .setEvents(events);
-
-    ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
-    addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
-    AddEventsResponse addEventsResponse = addEventsWithRetry(outputStream.toByteArray());
-    if (!AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
-      throw new AddEventsException(addEventsResponse.toString(), addEventsResponse.isRetriable);
+      ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+      addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
+      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(outputStream.toByteArray()), executorService);
+    } catch (IOException e) {
+      CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture();
+      errorFuture.complete(new AddEventsResponse().setStatus("IOException").setMessage(e.toString()));
+      return errorFuture;
     }
   }
 
@@ -95,6 +99,7 @@ public class AddEventsClient implements AutoCloseable {
    * @return AddEventsResponse
    */
   private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload) {
+    log.debug("addEvents payload size {} bytes", addEventsPayload.length);
     long startTimeMs = System.currentTimeMillis();
     httpPost.setEntity(new ByteArrayEntity(addEventsPayload));
     int delayTimeMs = 1000;
@@ -103,13 +108,14 @@ public class AddEventsClient implements AutoCloseable {
       try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
         addEventsResponse = parseAddEventsResponse(httpResponse);
         log.debug("post http code {}, httpResponse {}", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
-        // return if success or not retriable
-        if (AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus()) || !addEventsResponse.isRetriable()) {
+        // return if success or client bad param
+        if (AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus()) ||
+            AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.getStatus())) {
           return addEventsResponse;
         }
       } catch (IOException e) {
         log.warn("Error calling Scalyr addEvents API", e);
-        addEventsResponse = new AddEventsResponse().setStatus("IOException").setMessage(e.toString()).setRetriable(true);
+        addEventsResponse = new AddEventsResponse().setStatus("IOException").setMessage(e.toString());
       }
 
       if (attempt < maxRetries && (System.currentTimeMillis() - startTimeMs + delayTimeMs < addEventsTimeoutMs)) {
@@ -132,12 +138,12 @@ public class AddEventsClient implements AutoCloseable {
 
     if (responseLength == 0) {
       log.warn("addEvents received empty response, server may have reset connection.");
-      return new AddEventsResponse().setStatus("emptyResponse").setRetriable(true);
+      return new AddEventsResponse().setStatus("emptyResponse");
     }
 
     if (statusCode == 429) {
       log.warn("addEvents received \"too busy\" response from server.");
-      return new AddEventsResponse().setStatus("serverTooBusy").setRetriable(true);
+      return new AddEventsResponse().setStatus("serverTooBusy");
     }
 
     try {
@@ -148,19 +154,18 @@ public class AddEventsClient implements AutoCloseable {
         return addEventsResponse;
       }
 
-      if ("error/client/badParam".equals(addEventsResponse.status)) {
+      if (AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.status)) {
         log.error("addEvents failed due to a bad parameter value.  This may be caused by an invalid write logs api key in the configuration");
-        return addEventsResponse.setRetriable(false);
+        return addEventsResponse;
       }
 
       log.warn("addEvents failed with {}", addEventsResponse);
-      return addEventsResponse.setRetriable(true);
+      return addEventsResponse;
     } catch (IOException e) {
       log.error("Could not parse addEvents response", e);
-      return new AddEventsResponse().setStatus("parseResponseFailed").setRetriable(true);
+      return new AddEventsResponse().setStatus("parseResponseFailed");
     }
   }
-
 
   /**
    * Validates url and creates addEvents Scalyr URL
@@ -369,10 +374,10 @@ public class AddEventsClient implements AutoCloseable {
   @JsonIgnoreProperties(ignoreUnknown = true)  // ignore bytesCharged
   public static class AddEventsResponse {
     public static final String SUCCESS = "success";
+    public static final String CLIENT_BAD_PARAM = "error/client/badParam";
 
     private String status;
     private String message;
-    private boolean isRetriable = false;
 
     public String getStatus() {
       return status;
@@ -392,50 +397,12 @@ public class AddEventsClient implements AutoCloseable {
       return this;
     }
 
-    /**
-     * @return True if a non-success response is retriable
-     */
-    public boolean isRetriable() {
-      return isRetriable;
-    }
-
-    public AddEventsResponse setRetriable(boolean retriable) {
-      isRetriable = retriable;
-      return this;
-    }
-
     @Override
     public String toString() {
       return "{" +
         "\"status\":\"" + status + '"' +
         ", \"message\":\"" + message + '"' +
         '}';
-    }
-  }
-
-  /**
-   * AddEventsException is thrown when the addEvents API call fails.
-   * It has an `isRetriable` attribute which indicates whether this exception should be retried.
-   * Non-retriable exceptions are client errors such as bad api token, which will continue to fail if retried.
-   */
-  public static class AddEventsException extends RuntimeException {
-    private final boolean isRetriable;
-
-    public AddEventsException(String message, boolean isRetriable) {
-      super(message);
-      this.isRetriable = isRetriable;
-    }
-
-    public AddEventsException(String message, Throwable cause, boolean isRetriable) {
-      super(message, cause);
-      this.isRetriable = isRetriable;
-    }
-
-    /**
-     * @return true if this Exception should be retried.
-     */
-    public boolean isRetriable() {
-      return isRetriable;
     }
   }
 }

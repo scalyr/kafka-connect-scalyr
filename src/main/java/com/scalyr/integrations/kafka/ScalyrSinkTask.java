@@ -1,17 +1,23 @@
 package com.scalyr.integrations.kafka;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
+import com.scalyr.integrations.kafka.AddEventsClient.AddEventsResponse;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
+import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -23,6 +29,11 @@ public class ScalyrSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(ScalyrSinkTask.class);
   private AddEventsClient addEventsClient;
   private EventMapper eventMapper;
+  private final long addEventsTimeoutMs = 20_000;
+  private static final int MAX_CURRENT_REQUESTS = 2;
+
+  private final List<CompletableFuture<AddEventsResponse>> addEventsResponses = new ArrayList<>();
+  private ConnectException lastError = null;
 
   @Override
   public String version() {
@@ -45,6 +56,8 @@ public class ScalyrSinkTask extends SinkTask {
 
   /**
    * Sends the records to Scalyr using the addEvents API.
+   * If there are any failures since the last flush,
+   * throw an error to pause additional put batches until flush is called.
    *
    * If this operation fails, throw a {@link org.apache.kafka.connect.errors.RetriableException} to
    * indicate that the framework should attempt to retry the same call again. Other exceptions will cause the task to
@@ -58,26 +71,60 @@ public class ScalyrSinkTask extends SinkTask {
       return;
     }
 
+    // Don't add any more records once an error has occurred.
+    // flush will clear the error and all the records wil be retried
+    if (lastError != null) {
+      throw lastError;
+    }
+
+    // Limit number of concurrent requests
+    if (addEventsResponses.size() >= MAX_CURRENT_REQUESTS && !addEventsResponses.get(addEventsResponses.size() - MAX_CURRENT_REQUESTS).isDone()) {
+      throw new RetriableException("Too many queued requests");
+    }
+
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
 
-    try {
-      addEventsClient.log(events);
-    } catch (Exception e) {
-      throw new RetriableException(e);  // Kafka will retry and Scalyr server should dedep based on the offset
-    }
+    addEventsResponses.add(addEventsClient.log(events).whenComplete(this::addError));
   }
 
   /**
    * Flush all records that have been {@link #put(Collection)} for the specified topic-partitions.
+   * 1) Wait for addEvents requests to complete.
+   * 2) If any errors occurred, then clear the errors since the previous flush.
+   *    and throw an Exception so everything since the last successful offset commit will be retried.
    *
    * @param currentOffsets the current offset state as of the last call to {@link #put(Collection)}}
    */
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
-    // Nothing to do right now.  If we go async, this should make sure all records are sent to Scalyr and throw
-    // RetriableException on error so offsets will not be commited
+    // Wait for all addEvents requests to complete
+    waitForRequestsToComplete();
+
+    // Clear the responses for the next flush cycle
+    addEventsResponses.clear();
+
+    // Throw the last error if any
+    if (lastError != null) {
+      ConnectException flushException = lastError;
+      lastError = null;
+      throw flushException;
+    }
+  }
+
+
+  /**
+   * Waits for all outstanding addEvent requests to
+   * @throws RetriableException if any errors occur
+   */
+  @VisibleForTesting void waitForRequestsToComplete() {
+    try {
+      CompletableFuture<Void> addEventsFutures = CompletableFuture.allOf(addEventsResponses.toArray(new CompletableFuture[0]));
+      addEventsFutures.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
+    } catch (Exception e) {
+      throw new RetriableException(e);
+    }
   }
 
   /**
@@ -91,5 +138,31 @@ public class ScalyrSinkTask extends SinkTask {
     if (addEventsClient != null) {
       addEventsClient.close();
     }
+  }
+
+  /**
+   * Convert AddEventsResponse errors or CompleteableFuture exceptions into Kafka Connect Exceptions
+   * and set the {@link #lastError}.
+   */
+  private void addError(AddEventsResponse addEventsResponse, Throwable e) {
+    if (e != null) {
+      lastError = new RetriableException(e.getCause() != null ? e.getCause() : e);
+      return;
+    }
+
+    if (!AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
+      lastError = createConnectException(addEventsResponse);
+    }
+  }
+
+  /**
+   * Convert the AddEventResponse error to a ConnectException.
+   * ConnectException is returned with client bad param such as bad api key, which is not retriable
+   * RetriableException All other errors
+   */
+  private ConnectException createConnectException(AddEventsResponse addEventsResponse) {
+    return AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.getStatus())
+      ? new ConnectException(addEventsResponse.toString())
+      : new RetriableException(addEventsResponse.toString());
   }
 }
