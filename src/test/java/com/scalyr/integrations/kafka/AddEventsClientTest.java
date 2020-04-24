@@ -73,6 +73,7 @@ public class AddEventsClientTest {
     server = new MockWebServer();
     scalyrUrl = server.url("/").toString();
     this.compressor = CompressorFactory.getCompressor(CompressorFactory.NONE, null);
+    AddEventsClient.delayTimeMs = 1;
   }
 
   /**
@@ -206,26 +207,31 @@ public class AddEventsClientTest {
   @Test
   public void testAddEventsClientErrors() throws Exception {
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
+    int requestCount = 0;
 
     // Server Too Busy
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
     AddEventsResponse addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
     assertEquals("serverTooBusy", addEventsResponse.getStatus());
+    assertEquals(requestCount += AddEventsClient.maxRetries, server.getRequestCount());
 
     // Client Bad Request
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM));
     addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
     assertEquals(AddEventsResponse.CLIENT_BAD_PARAM, addEventsResponse.getStatus());
+    assertEquals(++requestCount, server.getRequestCount());
 
     // Empty Response
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(200).setBody(""));
     addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
     assertEquals("emptyResponse", addEventsResponse.getStatus());
+    assertEquals(requestCount += AddEventsClient.maxRetries, server.getRequestCount());
 
     // IOException
     addEventsClient = new AddEventsClient("http://localhost", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
     addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(10, TimeUnit.SECONDS);
     assertEquals("IOException", addEventsResponse.getStatus());
+    assertEquals(requestCount, server.getRequestCount());
   }
 
   /**

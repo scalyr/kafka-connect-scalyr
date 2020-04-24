@@ -23,6 +23,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static com.scalyr.integrations.kafka.TestUtils.fails;
+import static org.junit.Assert.assertEquals;
 
 /**
  * Test ScalyrSinkTask
@@ -55,6 +56,7 @@ public class ScalyrSinkTaskTest {
   @Before
   public void setup() {
     this.scalyrSinkTask = new ScalyrSinkTask();
+    AddEventsClient.delayTimeMs = 1;
   }
 
   /**
@@ -164,6 +166,7 @@ public class ScalyrSinkTaskTest {
     });
 
     scalyrSinkTask.waitForRequestsToComplete();
+    assertEquals(concurrencyLimit, server.getRequestCount());
   }
 
   /**
@@ -175,6 +178,7 @@ public class ScalyrSinkTaskTest {
   @Test
   public void testPutErrorHandling() {
     final int numRequests = 3;
+    int requestCount = 0;
     MockWebServer server = new MockWebServer();
     startTask(server);
 
@@ -183,10 +187,13 @@ public class ScalyrSinkTaskTest {
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
     scalyrSinkTask.waitForRequestsToComplete();
+    assertEquals(requestCount += AddEventsClient.maxRetries, server.getRequestCount());
 
     // Additional requests should have errors
+    final int currentRequestCount = requestCount;
     IntStream.range(0, numRequests).forEach(i -> {
       fails(() -> scalyrSinkTask.put(records), RetriableException.class);
+      assertEquals(currentRequestCount, server.getRequestCount());
     });
 
     // Flush throws exception and clears errors
@@ -195,6 +202,8 @@ public class ScalyrSinkTaskTest {
     // Subsequent requests should succeed
     server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
     scalyrSinkTask.put(records);
+    scalyrSinkTask.waitForRequestsToComplete();
+    assertEquals(++requestCount, server.getRequestCount());
   }
 
 

@@ -51,6 +51,7 @@ public class AddEventsClient implements AutoCloseable {
   private final ExecutorService executorService = Executors.newSingleThreadExecutor();
   private final HttpPost httpPost;
   private final String apiKey;
+  private final long addEventsTimeoutMs;
   private final Compressor compressor;
 
   /** Session ID per Task */
@@ -59,8 +60,8 @@ public class AddEventsClient implements AutoCloseable {
   private static final String userAgent = "KafkaConnector/" + VersionUtil.getVersion()
     + " JVM/" + System.getProperty("java.version");
 
+  @VisibleForTesting static int delayTimeMs = 1000;  // non-final so tests can modify this
   @VisibleForTesting final static int maxRetries = 3;
-  final long addEventsTimeoutMs;
 
   /**
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
@@ -103,7 +104,6 @@ public class AddEventsClient implements AutoCloseable {
     log.debug("addEvents payload size {} bytes", addEventsPayload.length);
     long startTimeMs = System.currentTimeMillis();
     httpPost.setEntity(new ByteArrayEntity(addEventsPayload));
-    int delayTimeMs = 1000;
     AddEventsResponse addEventsResponse = null;
     for (int attempt = 1; attempt <= maxRetries; attempt++) {
       try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
