@@ -3,6 +3,11 @@
 # Check https://circleci.com/docs/2.0/language-java-maven/ for more details
 
 version: 2 # use CircleCI 2.0
+parameters:
+  scalyr_sink_version:
+    type: string
+    default: "0.1"
+
 jobs: # a collection of steps
   build: # runs not using Workflows must have a `build` job as entry point
 
@@ -34,4 +39,4 @@ jobs: # a collection of steps
 
       - store_artifacts: # store the jar as an artifact
           # Upload test summary for display in Artifacts: https://circleci.com/docs/2.0/artifacts/
-          path: target/components/packages/scalyr-kafka-connect-scalyr-1.0-SNAPSHOT.zip
+          path: target/components/packages/scalyr-kafka-connect-scalyr-sink-<< pipeline.parameters.scalyr_sink_version >>.zip
