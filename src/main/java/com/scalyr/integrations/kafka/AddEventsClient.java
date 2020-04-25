@@ -83,9 +83,9 @@ public class AddEventsClient implements AutoCloseable {
    * 2) addEvents API call is done on a SingleThreadExecutor to only allow one addEvents call at a time.
    *
    * @param events Events to send to Scalyr using addEvents API
-   * @param dependentAddEvents Prior `log` CompletableFuture which must complete before `addEvents` API call is made.
-   * Events in a session must be processed in order.  The dependentAddEvents enforces this ordering.
-   * A successive batch in a session should not be sent if the previous batch fails.
+   * @param dependentAddEvents Dependent `log` CompletableFuture which must complete before `addEvents` API call is made.
+   * `dependentAddEvents` enforces ordering of Events in a session.
+   * `dependentAddEvents` failures causes the current `log` call to also fail.
    */
   public CompletableFuture<AddEventsResponse> log(List<Event> events, @Nullable CompletableFuture<AddEventsResponse> dependentAddEvents) {
     log.debug("Calling addEvents with {} events", events.size());

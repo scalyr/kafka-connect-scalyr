@@ -12,7 +12,6 @@ import org.apache.kafka.connect.sink.SinkTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -31,7 +30,7 @@ public class ScalyrSinkTask extends SinkTask {
   private EventMapper eventMapper;
   private long addEventsTimeoutMs;
 
-  private final List<CompletableFuture<AddEventsResponse>> addEventsResponses = new ArrayList<>();
+  private CompletableFuture<AddEventsResponse> dependentAddEvents = null;
   private volatile ConnectException lastError = null;
 
   @Override
@@ -81,10 +80,7 @@ public class ScalyrSinkTask extends SinkTask {
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
 
-    CompletableFuture<AddEventsResponse> dependentAddEvents =
-      addEventsResponses.isEmpty() ? null : addEventsResponses.get(addEventsResponses.size() - 1);
-
-    addEventsResponses.add(addEventsClient.log(events, dependentAddEvents).whenComplete(this::addError));
+    dependentAddEvents = addEventsClient.log(events, dependentAddEvents).whenComplete(this::addError);
   }
 
   /**
@@ -101,7 +97,7 @@ public class ScalyrSinkTask extends SinkTask {
     waitForRequestsToComplete();
 
     // Clear the responses for the next flush cycle
-    addEventsResponses.clear();
+    dependentAddEvents = null;
 
     // Throw the last error if any
     if (lastError != null) {
@@ -118,8 +114,7 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @VisibleForTesting void waitForRequestsToComplete() {
     try {
-      CompletableFuture<Void> addEventsFutures = CompletableFuture.allOf(addEventsResponses.toArray(new CompletableFuture[0]));
-      addEventsFutures.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
+      dependentAddEvents.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
     } catch (Exception e) {
       throw new RetriableException(e);
     }
