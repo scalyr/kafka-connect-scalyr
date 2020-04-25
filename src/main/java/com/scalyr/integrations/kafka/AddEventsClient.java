@@ -135,7 +135,7 @@ public class AddEventsClient implements AutoCloseable {
         addEventsResponse = parseAddEventsResponse(httpResponse);
         log.debug("post http code {}, httpResponse {}", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
         // return if success or client bad param
-        if (AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus()) ||
+        if (addEventsResponse.isSuccess() ||
             AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.getStatus())) {
           return addEventsResponse;
         }

@@ -148,7 +148,7 @@ public class ScalyrSinkTask extends SinkTask {
       return;
     }
 
-    if (!AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
+    if (!addEventsResponse.isSuccess()) {
       lastError = createConnectException(addEventsResponse);
     }
   }
