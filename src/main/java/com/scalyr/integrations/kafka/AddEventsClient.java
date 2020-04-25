@@ -21,6 +21,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -76,8 +77,17 @@ public class AddEventsClient implements AutoCloseable {
 
   /**
    * Make async addEvents POST API call to Scalyr with the events object.
+   *
+   * Pipelining is supported through the following:
+   * 1) Serialization and compression on the callers thread.
+   * 2) addEvents API call is done on a SingleThreadExecutor to only allow one addEvents call at a time.
+   *
+   * @param events Events to send to Scalyr using addEvents API
+   * @param dependentAddEvents Prior `log` CompletableFuture which must complete before `addEvents` API call is made.
+   * Events in a session must be processed in order.  The dependentAddEvents enforces this ordering.
+   * A successive batch in a session should not be sent if the previous batch fails.
    */
-  public CompletableFuture<AddEventsResponse> log(List<Event> events) {
+  public CompletableFuture<AddEventsResponse> log(List<Event> events, @Nullable CompletableFuture<AddEventsResponse> dependentAddEvents) {
     log.debug("Calling addEvents with {} events", events.size());
     try {
       AddEventsRequest addEventsRequest = new AddEventsRequest()
@@ -87,12 +97,27 @@ public class AddEventsClient implements AutoCloseable {
 
       ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
       addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
+
+      // Wait for dependent addEvents call to complete and return dependent failed future if failed
+      if (dependentAddEvents != null && !dependentAddEvents.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS).isSuccess()) {
+        log.warn("Dependent addEvents call failed");
+        return dependentAddEvents;
+      }
+
       return CompletableFuture.supplyAsync(() -> addEventsWithRetry(outputStream.toByteArray()), executorService);
-    } catch (IOException e) {
+    } catch (Exception e) {
+      log.warn("AddEventsClient.log error", e);
       CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture();
-      errorFuture.complete(new AddEventsResponse().setStatus("IOException").setMessage(e.toString()));
+      errorFuture.complete(new AddEventsResponse().setStatus("Exception").setMessage(e.toString()));
       return errorFuture;
     }
+  }
+
+  /**
+   * Convenience function for {@link #log(List, CompletableFuture)} that does not have a dependent addEvents call.
+   */
+  public CompletableFuture<AddEventsResponse> log(List<Event> events) {
+    return log(events, null);
   }
 
   /**
@@ -151,11 +176,11 @@ public class AddEventsClient implements AutoCloseable {
       AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
 
       // Success
-      if (statusCode == HttpStatus.SC_OK && AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
+      if (statusCode == HttpStatus.SC_OK && addEventsResponse.isSuccess()) {
         return addEventsResponse;
       }
 
-      if (AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.status)) {
+      if (AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.getStatus())) {
         log.error("addEvents failed due to a bad parameter value.  This may be caused by an invalid write logs api key in the configuration");
         return addEventsResponse;
       }
@@ -396,6 +421,10 @@ public class AddEventsClient implements AutoCloseable {
     public AddEventsResponse setMessage(String message) {
       this.message = message;
       return this;
+    }
+
+    public boolean isSuccess() {
+      return SUCCESS.equalsIgnoreCase(getStatus());
     }
 
     @Override

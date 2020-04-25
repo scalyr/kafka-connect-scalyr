@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -32,6 +33,8 @@ import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_RESPONSE_SUCCE
 import static com.scalyr.integrations.kafka.TestValues.ADD_EVENTS_TIMEOUT_MS;
 import static com.scalyr.integrations.kafka.TestValues.API_KEY_VALUE;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
 
@@ -233,6 +236,95 @@ public class AddEventsClientTest {
     assertEquals("IOException", addEventsResponse.getStatus());
     assertEquals(requestCount, server.getRequestCount());
   }
+
+  /**
+   * Verify dependent requests success case
+   */
+  @Test
+  public void testDependentRequestsSuccess() throws Exception {
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
+
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
+
+    CompletableFuture<AddEventsResponse> request1 = addEventsClient.log(createTestEvents(1, 1, 1, 1));
+    CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(createTestEvents(1, 1, 1, 1), request1);
+
+    assertNotEquals(request1, request2);
+    AddEventsResponse addEventsResponse1 = request1.get(10, TimeUnit.SECONDS);
+    AddEventsResponse addEventsResponse2 = request2.get(10, TimeUnit.SECONDS);
+    assertNotEquals(addEventsResponse1, addEventsResponse2);
+    assertTrue(addEventsResponse1.isSuccess());
+    assertTrue(addEventsResponse2.isSuccess());
+    assertEquals(2, server.getRequestCount());
+  }
+
+  /**
+   * Verify dependent requests - dependent request fails
+   * Dependent request failure future should be returned for second request.
+   */
+  @Test
+  public void testDependentRequestsError() throws Exception {
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
+
+    // MockWebServer response with delay for first request
+    TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
+
+    CompletableFuture<AddEventsResponse> request1 = addEventsClient.log(createTestEvents(1, 1, 1, 1));
+    CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(createTestEvents(1, 1, 1, 1), request1);
+
+    AddEventsResponse addEventsResponse1 = request1.get(10, TimeUnit.SECONDS);
+    AddEventsResponse addEventsResponse2 = request2.get(10, TimeUnit.SECONDS);
+    assertEquals(addEventsResponse1, addEventsResponse2);
+    assertFalse(addEventsResponse1.isSuccess());
+    assertEquals(AddEventsClient.maxRetries, server.getRequestCount());
+  }
+
+  /**
+   * Verify AddEventsResponse with Timeout is returned when request times out on dependent request completion.
+   */
+  @Test
+  public void testAddEventsTimeout() throws Exception {
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, 1, compressor);
+
+    // MockWebServer response with delay
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)
+      .setHeadersDelay(100, TimeUnit.MILLISECONDS));
+
+    CompletableFuture<AddEventsResponse> request1 = addEventsClient.log(createTestEvents(1, 1, 1, 1));
+    CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(createTestEvents(1, 1, 1, 1), request1);
+    AddEventsResponse addEventsResponse2 = request2.get(10, TimeUnit.SECONDS);
+    assertFalse(addEventsResponse2.isSuccess());
+    assertTrue(addEventsResponse2.getMessage().contains("Timeout"));
+    AddEventsResponse addEventsResponse1 = request1.get(10, TimeUnit.SECONDS);
+    assertTrue(addEventsResponse1.isSuccess());
+    assertEquals(1, server.getRequestCount());
+  }
+
+  /**
+   * Verify AddEventsClient.log waits for dependent requests to complete first.
+   */
+  @Test
+  public void testWaitForDependentRequests() throws Exception {
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, compressor);
+
+    // MockWebServer response with delay for first request
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)
+      .setHeadersDelay(100, TimeUnit.MILLISECONDS));
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+
+    CompletableFuture<AddEventsResponse> request1 = addEventsClient.log(createTestEvents(1, 1, 1, 1));
+    CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(createTestEvents(1, 1, 1, 1), request1);
+    assertNotEquals(request1, request2);
+    AddEventsResponse addEventsResponse1 = request1.get(10, TimeUnit.SECONDS);
+    AddEventsResponse addEventsResponse2 = request2.get(10, TimeUnit.SECONDS);
+    assertNotEquals(addEventsResponse1, addEventsResponse2);
+    assertTrue(addEventsResponse1.isSuccess());
+    assertTrue(addEventsResponse2.isSuccess());
+    assertEquals(2, server.getRequestCount());
+  }
+
 
   /**
    * Verify URL validation for incorrect and correct URLs

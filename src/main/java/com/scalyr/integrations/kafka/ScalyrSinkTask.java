@@ -30,10 +30,9 @@ public class ScalyrSinkTask extends SinkTask {
   private AddEventsClient addEventsClient;
   private EventMapper eventMapper;
   private long addEventsTimeoutMs;
-  private static final int MAX_CURRENT_REQUESTS = 2;
 
   private final List<CompletableFuture<AddEventsResponse>> addEventsResponses = new ArrayList<>();
-  private ConnectException lastError = null;
+  private volatile ConnectException lastError = null;
 
   @Override
   public String version() {
@@ -72,42 +71,20 @@ public class ScalyrSinkTask extends SinkTask {
       return;
     }
 
-    // Don't add any more records once an error has occurred.
+    // Don't process any more records once an error has occurred.
     // flush will clear the error and all the records wil be retried
     if (lastError != null) {
       throw lastError;
     }
 
-    // Limit number of concurrent requests
-    enforceConcurrencyLimit();
-
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
 
-    addEventsResponses.add(addEventsClient.log(events).whenComplete(this::addError));
-  }
+    CompletableFuture<AddEventsResponse> dependentAddEvents =
+      addEventsResponses.isEmpty() ? null : addEventsResponses.get(addEventsResponses.size() - 1);
 
-  /**
-   * Enforces that {@link #MAX_CURRENT_REQUESTS} is not exceeded.
-   * Block and wait up to {@link #addEventsTimeoutMs} for add events request to complete
-   * when the number of concurrent requests is exceed.
-   * @throws RetriableException To pause SinkTask partitions when add events does not complete within the timeout.
-   */
-  private void enforceConcurrencyLimit() {
-    if (addEventsResponses.size() < MAX_CURRENT_REQUESTS) {
-      return;
-    }
-
-    CompletableFuture<AddEventsResponse> addEventsFuture = addEventsResponses.get(addEventsResponses.size() - MAX_CURRENT_REQUESTS);
-    if (!addEventsFuture.isDone()) {
-      try {
-        addEventsFuture.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
-      } catch (Exception e) {
-        log.warn("Timeout or error enforcing addEvents concurrency limit", e);
-        throw new RetriableException("addEvents concurrency limit", e);
-      }
-    }
+    addEventsResponses.add(addEventsClient.log(events, dependentAddEvents).whenComplete(this::addError));
   }
 
   /**

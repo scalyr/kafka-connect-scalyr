@@ -18,7 +18,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -39,7 +38,6 @@ public class ScalyrSinkTaskTest {
   private static final int numServers = 5;
   private static final int numLogFiles = 3;
   private static final int numParsers = 2;
-  private static final int concurrencyLimit = 3;
 
   /**
    * Create test parameters for each SinkRecordValueCreator type.
@@ -121,52 +119,6 @@ public class ScalyrSinkTaskTest {
       }
       scalyrSinkTask.flush(new HashMap<>());
     }
-  }
-
-  /**
-   * Verify exception is thrown when concurrency limit is exceeded
-   * and add events request is not complete within add events timeout
-   */
-  @Test(expected = RetriableException.class)
-  public void testMaxConcurrentRequestsExceededTimeout() {
-    MockWebServer server = new MockWebServer();
-    Map<String, String> configMap = createConfig();
-    configMap.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
-    configMap.put(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG, "1");
-    scalyrSinkTask.start(configMap);
-
-
-    // MockWebServer response with delay
-    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)
-      .setHeadersDelay(3, TimeUnit.SECONDS));
-
-    IntStream.range(0, concurrencyLimit).forEach(i -> {
-      List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
-      scalyrSinkTask.put(records);
-    });
-  }
-
-  /**
-   * When the concurrency limit is exceeded, put will block waiting for earlier requests to finish.
-   * Verify requests after concurrency limit is exceeded wait for slow requests to finish.
-   */
-  @Test
-  public void testMaxConcurrentRequestsExceeded() {
-    MockWebServer server = new MockWebServer();
-    startTask(server);
-
-    // MockWebServer response with delay for first request
-    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)
-      .setHeadersDelay(1, TimeUnit.SECONDS));
-    IntStream.range(0, concurrencyLimit - 1).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)));
-
-    IntStream.range(0, concurrencyLimit).forEach(i -> {
-      List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
-      scalyrSinkTask.put(records);
-    });
-
-    scalyrSinkTask.waitForRequestsToComplete();
-    assertEquals(concurrencyLimit, server.getRequestCount());
   }
 
   /**
