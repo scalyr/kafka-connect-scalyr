@@ -1,5 +1,7 @@
 package com.scalyr.integrations.kafka;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -24,6 +26,7 @@ public class Event {
   // Event level fields
   private long timestamp;
   private String message;
+  private Map<String, Object> additionalAttrs;
 
   // Setters
   public Event setTopic(String topic) {
@@ -66,6 +69,19 @@ public class Event {
     return this;
   }
 
+  public Event setAdditionalAttrs(Map<String, Object> additionalAttrs) {
+    this.additionalAttrs = additionalAttrs;
+    return this;
+  }
+
+  public Event addAdditionalAttr(String key, Object value) {
+    if (additionalAttrs == null) {
+      additionalAttrs = new HashMap<>();
+    }
+    this.additionalAttrs.put(key, value);
+    return this;
+  }
+
   // Getters
   public String getTopic() {
     return topic;
@@ -98,6 +114,8 @@ public class Event {
   public String getMessage() {
     return message;
   }
+
+  public Map<String, Object> getAdditionalAttrs() { return additionalAttrs; }
 
   /**
    * Equals only uses server level fields for log id mapping

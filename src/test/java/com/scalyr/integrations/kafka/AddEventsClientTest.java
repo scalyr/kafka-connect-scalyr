@@ -431,7 +431,10 @@ public class AddEventsClientTest {
           .setParser(TestValues.PARSER_VALUE + logFileNum % numParsers)
           .setLogfile(TestValues.LOGFILE_VALUE + logFileNum)
           .setServerHost(TestValues.SERVER_VALUE + random.nextInt(numServers))
-          .setTimestamp(ScalyrUtil.nanoTime());
+          .setTimestamp(ScalyrUtil.nanoTime())
+          .addAdditionalAttr("env", "test")
+          .addAdditionalAttr("isTest", true)
+          .addAdditionalAttr("version", 2.3);
       })
       .collect(Collectors.toList());
   }
@@ -468,11 +471,21 @@ public class AddEventsClientTest {
     Map eventAttrs = (Map) event.get(ATTRS);
     assertEquals(origEvent.getMessage(), eventAttrs.get(MESSAGE));
 
-    // Add log level attributes back into event attrs and make sure all the attrs are correct
+    // Verify log level attrs
     Map logLevelAttrs = (Map) logIdAttrs.get(logId);
     assertEquals(origEvent.getServerHost(), logLevelAttrs.get(SERVERHOST));
     assertEquals(origEvent.getLogfile(), logLevelAttrs.get(LOGFILE));
     assertEquals(origEvent.getParser(), logLevelAttrs.get(PARSER));
+
+    // Verify additional event attrs
+    if (origEvent.getAdditionalAttrs() != null) {
+      origEvent.getAdditionalAttrs().forEach((key, value) -> {
+        assertEquals(value, eventAttrs.get(key));
+      });
+
+      // Verify no unexpected attr.  +1 for message field in eventAttrs
+      assertEquals(origEvent.getAdditionalAttrs().size() + 1, eventAttrs.size());
+    }
   }
 
 
