@@ -479,9 +479,7 @@ public class AddEventsClientTest {
 
     // Verify additional event attrs
     if (origEvent.getAdditionalAttrs() != null) {
-      origEvent.getAdditionalAttrs().forEach((key, value) -> {
-        assertEquals(value, eventAttrs.get(key));
-      });
+      origEvent.getAdditionalAttrs().forEach((key, value) -> assertEquals(value, eventAttrs.get(key)));
 
       // Verify no unexpected attr.  +1 for message field in eventAttrs
       assertEquals(origEvent.getAdditionalAttrs().size() + 1, eventAttrs.size());

@@ -7,8 +7,10 @@ import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 /**
  * Converts a SinkRecord to a Scalyr Event.
@@ -18,6 +20,18 @@ import java.util.function.Supplier;
 public class EventMapper {
 
   private static final List<MessageMapper> messageMappers = ImmutableList.of(new FilebeatMessageMapper());
+  private Map<String, String> enrichmentAttrs;
+
+  /**
+   * @param eventEnrichment key value event enrichment attributes as key=value
+   */
+  public EventMapper(List<String> eventEnrichment) {
+    if (eventEnrichment != null) {
+      enrichmentAttrs = eventEnrichment.stream()
+        .map(pair -> pair.split("=", 2))
+        .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
+    }
+  }
 
   /**
    * Convert a single SinkRecord to a Scalyr Event using a {@link MessageMapper}
@@ -43,7 +57,8 @@ public class EventMapper {
       .setServerHost(serverHost.get())
       .setLogfile(messageMapper.getLogfile(record))
       .setParser(messageMapper.getParser(record))
-      .setMessage(messageMapper.getMessage(record));
+      .setMessage(messageMapper.getMessage(record))
+      .setAdditionalAttrs((Map)enrichmentAttrs);
   }
 
   /**

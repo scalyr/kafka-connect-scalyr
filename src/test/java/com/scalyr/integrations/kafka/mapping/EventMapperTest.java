@@ -12,10 +12,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 
@@ -27,26 +31,33 @@ public class EventMapperTest {
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
+  private static final List<List<String>> testEnrichmentAttrs =
+    Arrays.asList(null, Arrays.asList(TestValues.ENRICHMENT_VALUE.split(","))); // Test without and with enrichment
   private static final AtomicInteger offset = new AtomicInteger();
 
   private final Supplier<Object> recordValue;
+  private final List<String> enrichmentAttrs;
   private EventMapper eventMapper;
 
   /**
-   * Create test parameters for each SinkRecordValueCreator type.
+   * Create test parameters for each SinkRecordValueCreator type and testEnrichmentAttrs combination.
+   * Object[] = {Supplier<Object> recordValue, List<String> enrichmentAttr}
    */
   @Parameterized.Parameters
   public static Collection<Object[]> testParams() {
-    return TestUtils.singleRecordValueTestParams();
+    return TestUtils.singleRecordValueTestParams().stream()
+      .flatMap(recordValue -> testEnrichmentAttrs.stream().map(enrichmentAttrs -> new Object[] {recordValue[0], enrichmentAttrs}))
+      .collect(Collectors.toList());
   }
 
-  public EventMapperTest(Supplier<Object> recordValue) {
+  public EventMapperTest(Supplier<Object> recordValue, List<String> enrichmentAttrs) {
     this.recordValue = recordValue;
+    this.enrichmentAttrs = enrichmentAttrs;
   }
 
   @Before
   public void setup() {
-    this.eventMapper = new EventMapper();
+    this.eventMapper = new EventMapper(enrichmentAttrs);
   }
 
   /**
@@ -89,7 +100,7 @@ public class EventMapperTest {
   /**
    * Validate Scalyr event matches SinkRecord
    */
-  private static void validateEvent(Event event) {
+  private void validateEvent(Event event) {
     assertEquals(TestValues.MESSAGE_VALUE, event.getMessage());
     assertEquals(TestValues.LOGFILE_VALUE + "0", event.getLogfile());
     assertEquals(TestValues.PARSER_VALUE + "0", event.getParser());
@@ -97,5 +108,19 @@ public class EventMapperTest {
     assertEquals(topic, event.getTopic());
     assertEquals(partition, event.getPartition());
     assertEquals(offset.get() - 1, event.getOffset());
+    assertEquals(convertEnrichmentAttrs(enrichmentAttrs), event.getAdditionalAttrs());
+  }
+
+  /**
+   * Convert List<String> of key=value into Map<String, Object>
+   */
+  private Map<String, Object> convertEnrichmentAttrs(List<String> enrichmentAttrs) {
+    if (enrichmentAttrs == null) {
+      return null;
+    }
+
+    return enrichmentAttrs.stream()
+      .map(enrichmentAttr -> enrichmentAttr.split("=", 2))
+      .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
   }
 }

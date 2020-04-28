@@ -91,7 +91,7 @@ public class ScalyrSinkTaskTest {
     scalyrSinkTask.put(records);
 
     // Verify sink records are sent to addEvents API
-    EventMapper eventMapper = new EventMapper();
+    EventMapper eventMapper = new EventMapper(new ScalyrSinkConnectorConfig(createConfig()).getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG));
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
@@ -209,6 +209,7 @@ public class ScalyrSinkTaskTest {
   private Map<String, String> createConfig() {
     return TestUtils.makeMap(
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TestValues.API_KEY_VALUE,
-      ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, CompressorFactory.NONE);
+      ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, CompressorFactory.NONE,
+      ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG, TestValues.ENRICHMENT_VALUE);
   }
 }
