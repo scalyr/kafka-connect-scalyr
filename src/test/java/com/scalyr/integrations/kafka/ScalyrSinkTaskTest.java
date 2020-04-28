@@ -177,6 +177,19 @@ public class ScalyrSinkTaskTest {
   }
 
   /**
+   * Test multiple rounds of flush with no records
+   */
+  @Test
+  public void testFlush() {
+    Map<String, String> config = createConfig();
+    scalyrSinkTask.start(config);
+
+    scalyrSinkTask.flush(new HashMap<>());
+    scalyrSinkTask.flush(new HashMap<>());
+    scalyrSinkTask.flush(new HashMap<>());
+  }
+
+  /**
    * Verify stop doesn't throw any exceptions
    */
   @Test

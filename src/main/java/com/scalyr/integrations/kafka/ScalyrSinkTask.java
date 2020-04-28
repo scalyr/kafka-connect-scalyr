@@ -114,7 +114,9 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @VisibleForTesting void waitForRequestsToComplete() {
     try {
-      dependentAddEvents.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
+      if (dependentAddEvents != null) {
+        dependentAddEvents.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
+      }
     } catch (Exception e) {
       throw new RetriableException(e);
     }
