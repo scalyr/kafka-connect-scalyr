@@ -28,9 +28,9 @@ public class ScalyrSinkTask extends SinkTask {
   private static final Logger log = LoggerFactory.getLogger(ScalyrSinkTask.class);
   private AddEventsClient addEventsClient;
   private EventMapper eventMapper;
-  private long addEventsTimeoutMs;
+  private int addEventsTimeoutMs;
 
-  private CompletableFuture<AddEventsResponse> dependentAddEvents = null;
+  private CompletableFuture<AddEventsResponse> pendingAddEvents = null;
   private volatile ConnectException lastError = null;
 
   @Override
@@ -46,9 +46,10 @@ public class ScalyrSinkTask extends SinkTask {
   @Override
   public void start(Map<String, String> configProps) {
     ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
-    this.addEventsTimeoutMs = sinkConfig.getLong(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG);
+    this.addEventsTimeoutMs = sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG);
     this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG),
       sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(), addEventsTimeoutMs,
+      sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG),
       CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG), sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)));
     this.eventMapper = new EventMapper();
   }
@@ -80,7 +81,7 @@ public class ScalyrSinkTask extends SinkTask {
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
 
-    dependentAddEvents = addEventsClient.log(events, dependentAddEvents).whenComplete(this::addError);
+    pendingAddEvents = addEventsClient.log(events, pendingAddEvents).whenComplete(this::processResponse);
   }
 
   /**
@@ -97,7 +98,7 @@ public class ScalyrSinkTask extends SinkTask {
     waitForRequestsToComplete();
 
     // Clear the responses for the next flush cycle
-    dependentAddEvents = null;
+    pendingAddEvents = null;
 
     // Throw the last error if any
     if (lastError != null) {
@@ -114,8 +115,8 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @VisibleForTesting void waitForRequestsToComplete() {
     try {
-      if (dependentAddEvents != null) {
-        dependentAddEvents.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
+      if (pendingAddEvents != null) {
+        pendingAddEvents.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
       }
     } catch (Exception e) {
       throw new RetriableException(e);
@@ -139,7 +140,7 @@ public class ScalyrSinkTask extends SinkTask {
    * Convert AddEventsResponse errors or CompleteableFuture exceptions into Kafka Connect Exceptions
    * and set the {@link #lastError}.
    */
-  private void addError(AddEventsResponse addEventsResponse, Throwable e) {
+  private void processResponse(AddEventsResponse addEventsResponse, Throwable e) {
     if (e != null) {
       lastError = new RetriableException(e.getCause() != null ? e.getCause() : e);
       return;
@@ -156,8 +157,8 @@ public class ScalyrSinkTask extends SinkTask {
    * RetriableException All other errors
    */
   private ConnectException createConnectException(AddEventsResponse addEventsResponse) {
-    return AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.getStatus())
-      ? new ConnectException(addEventsResponse.toString())
-      : new RetriableException(addEventsResponse.toString());
+    return addEventsResponse.isRetriable()
+      ? new RetriableException(addEventsResponse.toString())
+      : new ConnectException(addEventsResponse.toString());
   }
 }

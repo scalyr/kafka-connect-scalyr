@@ -22,6 +22,7 @@ public class ScalyrSinkConnectorConfigTest {
   private static final String TEST_COMPRESSION_TYPE = "none";
   private static final String TEST_COMPRESSION_LEVEL = "0";
   private static final String TEST_ADD_EVENTS_TIMEOUT = "32000";
+  private static final String TEST_ADD_EVENTS_RETRY_DELAY_MS = "5000";
 
   /**
    * Test config with all values specified
@@ -33,14 +34,16 @@ public class ScalyrSinkConnectorConfigTest {
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TEST_API_KEY,
       ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, TEST_COMPRESSION_TYPE,
       ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG, TEST_COMPRESSION_LEVEL,
-      ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG, TEST_ADD_EVENTS_TIMEOUT);
+      ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG, TEST_ADD_EVENTS_TIMEOUT,
+      ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG, TEST_ADD_EVENTS_RETRY_DELAY_MS);
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(TEST_SCALYR_SERVER, connectorConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
     assertEquals(TEST_COMPRESSION_TYPE, connectorConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG));
     assertEquals(Integer.valueOf(TEST_COMPRESSION_LEVEL), connectorConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG));
-    assertEquals(Long.valueOf(TEST_ADD_EVENTS_TIMEOUT), connectorConfig.getLong(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG));
+    assertEquals(Integer.valueOf(TEST_ADD_EVENTS_TIMEOUT), connectorConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG));
+    assertEquals(Integer.valueOf(TEST_ADD_EVENTS_RETRY_DELAY_MS), connectorConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG));
   }
 
   /**
@@ -56,7 +59,7 @@ public class ScalyrSinkConnectorConfigTest {
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value());
     assertEquals(ScalyrSinkConnectorConfig.DEFAULT_COMPRESSION_TYPE, connectorConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG));
     assertNull(connectorConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG));
-    assertEquals(20000, connectorConfig.getLong(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG).longValue());
+    assertEquals(20000, connectorConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG).intValue());
   }
 
   /**
@@ -74,7 +77,8 @@ public class ScalyrSinkConnectorConfigTest {
   @Test
   public void testConfigDef() {
     final ImmutableSet<String> configs = ImmutableSet.of(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, ScalyrSinkConnectorConfig.SCALYR_API_CONFIG,
-      ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG, ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG);
+      ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG, ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG,
+      ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG);
     ConfigDef configDef = ScalyrSinkConnectorConfig.configDef();
     assertEquals(configs.size(), configDef.names().size());
     assertTrue(configDef.names().containsAll(configs));

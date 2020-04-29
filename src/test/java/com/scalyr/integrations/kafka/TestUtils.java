@@ -6,8 +6,11 @@ import com.scalyr.integrations.kafka.mapping.FilebeatMessageMapperTest;
 import com.scalyr.integrations.kafka.mapping.SinkRecordValueCreator;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+import okhttp3.mockwebserver.QueueDispatcher;
+import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -150,9 +153,30 @@ public class TestUtils {
   }
 
   /**
-   * AddEventsClient performs retries on failure.  Enqueue `maxRetries` MockResponse to the server.
+   * AddEventsClient performs retries on failure.  Enqueue {@link TestValues#EXPECTED_NUM_RETRIES} MockResponses to the server.
    */
   public static void addMockResponseWithRetries(MockWebServer server, MockResponse mockResponse) {
-    IntStream.range(0, AddEventsClient.maxRetries).forEach(i -> server.enqueue(mockResponse));
+    IntStream.range(0, TestValues.EXPECTED_NUM_RETRIES).forEach(i -> server.enqueue(mockResponse));
+  }
+
+  /**
+   * {@link MockWebServer} Custom Dispatcher that performs `dispatchPreaction` before dispatch is called.
+   */
+  public static class CustomActionDispatcher extends QueueDispatcher {
+    private final Runnable dispatchPreaction;
+
+    /**
+     * @param dispatchPreaction Preaction to run before dispatch is called.
+     */
+    public CustomActionDispatcher(Runnable dispatchPreaction) {
+      this.dispatchPreaction = dispatchPreaction;
+    }
+
+    @NotNull
+    @Override
+    public MockResponse dispatch(@NotNull RecordedRequest recordedRequest) throws InterruptedException {
+      dispatchPreaction.run();
+      return super.dispatch(recordedRequest);
+    }
   }
 }

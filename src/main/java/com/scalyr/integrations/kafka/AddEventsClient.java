@@ -7,9 +7,9 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
-import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.util.concurrent.Uninterruptibles;
+import com.scalyr.api.internal.ScalyrUtil;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
@@ -53,6 +53,7 @@ public class AddEventsClient implements AutoCloseable {
   private final HttpPost httpPost;
   private final String apiKey;
   private final long addEventsTimeoutMs;
+  private final int initialBackoffDelayMs;
   private final Compressor compressor;
 
   /** Session ID per Task */
@@ -61,15 +62,18 @@ public class AddEventsClient implements AutoCloseable {
   private static final String userAgent = "KafkaConnector/" + VersionUtil.getVersion()
     + " JVM/" + System.getProperty("java.version");
 
-  @VisibleForTesting static int delayTimeMs = 1000;  // non-final so tests can modify this
-  @VisibleForTesting final static int maxRetries = 3;
+  /**
+   * Default Timeout Add Events Response
+   */
+  private static final AddEventsResponse TIMEOUT_ADD_EVENTS_RESPONSE = new AddEventsResponse().setStatus("Timeout").setMessage("Timeout");
 
   /**
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, Compressor compressor) {
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor) {
     this.apiKey = apiKey;
     this.addEventsTimeoutMs = addEventsTimeoutMs;
+    this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
     this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
     addHeaders();
@@ -90,6 +94,7 @@ public class AddEventsClient implements AutoCloseable {
   public CompletableFuture<AddEventsResponse> log(List<Event> events, @Nullable CompletableFuture<AddEventsResponse> dependentAddEvents) {
     log.debug("Calling addEvents with {} events", events.size());
     try {
+      long startTimeMs = ScalyrUtil.currentTimeMillis();
       AddEventsRequest addEventsRequest = new AddEventsRequest()
         .setSession(sessionId)
         .setToken(apiKey)
@@ -99,12 +104,12 @@ public class AddEventsClient implements AutoCloseable {
       addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
 
       // Wait for dependent addEvents call to complete and return dependent failed future if failed
-      if (dependentAddEvents != null && !dependentAddEvents.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS).isSuccess()) {
+      if (dependentAddEvents != null && !dependentAddEvents.get(remainingMs(startTimeMs), TimeUnit.MILLISECONDS).isSuccess()) {
         log.warn("Dependent addEvents call failed");
         return dependentAddEvents;
       }
 
-      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(outputStream.toByteArray()), executorService);
+      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(outputStream.toByteArray(), startTimeMs), executorService);
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
       CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture();
@@ -121,22 +126,24 @@ public class AddEventsClient implements AutoCloseable {
   }
 
   /**
-   * Call Scalyr addEvents API with {@link #maxRetries} and {@link #addEventsTimeoutMs} using exponential backoff.
+   * Call Scalyr addEvents API with {@link #addEventsTimeoutMs} using exponential backoff.
    * @param addEventsPayload byte[] addEvents payload
+   * @param startTimeMs time in ms from epoch when `log` is called.  Used to enforce `addEventsTimeoutMs` deadline.
    * @return AddEventsResponse
    */
-  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload) {
+  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long startTimeMs) {
     log.debug("addEvents payload size {} bytes", addEventsPayload.length);
-    long startTimeMs = System.currentTimeMillis();
+    AddEventsResponse addEventsResponse = TIMEOUT_ADD_EVENTS_RESPONSE;
+    int delayTimeMs = initialBackoffDelayMs;
     httpPost.setEntity(new ByteArrayEntity(addEventsPayload));
-    AddEventsResponse addEventsResponse = null;
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+
+    boolean shouldCallAddEvents = remainingMs(startTimeMs) > 0;
+    while (shouldCallAddEvents) {
       try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
         addEventsResponse = parseAddEventsResponse(httpResponse);
         log.debug("post http code {}, httpResponse {}", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
-        // return if success or client bad param
-        if (addEventsResponse.isSuccess() ||
-            AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.getStatus())) {
+        // return on success or non-retriable error
+        if (addEventsResponse.isSuccess() || !addEventsResponse.isRetriable()) {
           return addEventsResponse;
         }
       } catch (IOException e) {
@@ -144,8 +151,13 @@ public class AddEventsClient implements AutoCloseable {
         addEventsResponse = new AddEventsResponse().setStatus("IOException").setMessage(e.toString());
       }
 
-      if (attempt < maxRetries && (System.currentTimeMillis() - startTimeMs + delayTimeMs < addEventsTimeoutMs)) {
-        Uninterruptibles.sleepUninterruptibly(delayTimeMs, TimeUnit.MILLISECONDS);
+      shouldCallAddEvents = remainingMs(startTimeMs) > delayTimeMs;
+
+      if (shouldCallAddEvents) {
+        // To prevent sleep during tests, tests should start mockable timer at 0 and increment up to addEventsTimeoutMs
+        if (ScalyrUtil.currentTimeMillis() > addEventsTimeoutMs) {
+          Uninterruptibles.sleepUninterruptibly(delayTimeMs, TimeUnit.MILLISECONDS);
+        }
         delayTimeMs = delayTimeMs * 2;
       }
     }
@@ -223,6 +235,14 @@ public class AddEventsClient implements AutoCloseable {
     httpPost.addHeader("Connection", "Keep-Alive");
     httpPost.addHeader("User-Agent", userAgent);
     httpPost.addHeader("Content-Encoding", compressor.getContentEncoding());
+  }
+
+  /**
+   * @param startTimeMs Start time ms of {@link #log(List, CompletableFuture)} call
+   * @return Time ms remaining of the addEventsTimeoutMs deadline
+   */
+  private long remainingMs(long startTimeMs) {
+    return Math.max(addEventsTimeoutMs - (ScalyrUtil.currentTimeMillis() - startTimeMs), 0);
   }
 
   @Override
@@ -424,7 +444,16 @@ public class AddEventsClient implements AutoCloseable {
     }
 
     public boolean isSuccess() {
-      return SUCCESS.equalsIgnoreCase(getStatus());
+      return SUCCESS.equals(getStatus());
+    }
+
+    /**
+     * Client bad param indicates a client request error such as invalid api token and should not be retried.
+     * Success also should not be retried.
+     * @return true if this response should be retried
+     */
+    public boolean isRetriable() {
+      return !CLIENT_BAD_PARAM.equals(getStatus()) && !SUCCESS.equals(getStatus());
     }
 
     @Override

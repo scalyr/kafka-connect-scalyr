@@ -1,6 +1,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import okhttp3.mockwebserver.MockResponse;
@@ -18,6 +19,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -54,7 +56,6 @@ public class ScalyrSinkTaskTest {
   @Before
   public void setup() {
     this.scalyrSinkTask = new ScalyrSinkTask();
-    AddEventsClient.delayTimeMs = 1;
   }
 
   /**
@@ -107,7 +108,7 @@ public class ScalyrSinkTaskTest {
    */
   @Test
   public void testPutFlushCycles() throws Exception {
-    final int numCycles = 5;  // cycle = multiple puts followed by a flush
+    final int numCycles = 2;  // cycle = multiple puts followed by a flush
     final int numPuts = 10;
     MockWebServer server = new MockWebServer();
 
@@ -126,20 +127,31 @@ public class ScalyrSinkTaskTest {
    * 1. put returns errors for all requests after an error has occurred
    * 2. flush clears the errors
    * 3. Subsequent puts succeed
+   *
+   * Uses `ScalyrUtil` mockable clock to mock time for retry attempts.
+   * Uses `CustomActionDispatcher` to advance mockable clock when a request occurs.
    */
   @Test
   public void testPutErrorHandling() {
     final int numRequests = 3;
     int requestCount = 0;
+    AtomicInteger tryCount = new AtomicInteger();
     MockWebServer server = new MockWebServer();
+
+    // Advance mockable clock when MockHttpServer request occurs
+    server.setDispatcher(new TestUtils.CustomActionDispatcher(() ->
+      ScalyrUtil.advanceCustomTimeMs((long)Math.pow(2, tryCount.getAndIncrement()) * TestValues.ADD_EVENTS_RETRY_DELAY_MS)));
+
     startTask(server);
 
     // Error first request
+    ScalyrUtil.setCustomTimeNs(0);
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY));
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
     scalyrSinkTask.waitForRequestsToComplete();
-    assertEquals(requestCount += AddEventsClient.maxRetries, server.getRequestCount());
+    assertEquals(requestCount += TestValues.EXPECTED_NUM_RETRIES, server.getRequestCount());
+    ScalyrUtil.removeCustomTime();
 
     // Additional requests should have errors
     final int currentRequestCount = requestCount;

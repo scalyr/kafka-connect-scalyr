@@ -26,6 +26,9 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
   private static final String COMPRESSION_LEVEL_DOC = "Compression level for the compression_type.  Valid values depend on the compression_type.  Default will be used if not specified.";
   public static final String ADD_EVENTS_TIMEOUT_MS_CONFIG = "add_events_timeout_ms";
   private static final String ADD_EVENTS_TIMEOUT_MS_DOC = "Timeout in milliseconds for Scalyr add events call.";
+  public static final String ADD_EVENTS_RETRY_DELAY_MS_CONFIG = "add_events_retry_delay_ms";
+  private static final String ADD_EVENTS_RETRY_DELAY_MS_DOC = "Delay in milliseconds for initial add events retry.  This delay is increased exponentially for each retry.";
+
 
   public ScalyrSinkConnectorConfig(Map<String, String> parsedConfig) {
     super(configDef(), parsedConfig);
@@ -37,6 +40,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         .define(SCALYR_API_CONFIG, Type.PASSWORD, Importance.HIGH, SCALYR_API_DOC)
         .define(COMPRESSION_TYPE_CONFIG,  Type.STRING, DEFAULT_COMPRESSION_TYPE, Importance.LOW, COMPRESSION_TYPE_DOC)
         .define(COMPRESSION_LEVEL_CONFIG, Type.INT, null, Importance.LOW, COMPRESSION_LEVEL_DOC)
-        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.LONG, 20_000, Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC);
+        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, 20_000, Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
+        .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, 1000, Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC);
   }
 }
