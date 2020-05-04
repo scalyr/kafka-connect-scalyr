@@ -3,11 +3,11 @@
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.scalyr.integrations.kafka</groupId>
-    <artifactId>kafka-connect-scalyr</artifactId>
-    <version>1.0-SNAPSHOT</version>
+    <artifactId>kafka-connect-scalyr-sink</artifactId>
+    <version>0.1</version>
     <packaging>jar</packaging>
 
-    <name>kafka-connect-scalyr</name>
+    <name>kafka-connect-scalyr-sink</name>
 
     <properties>
         <kafka.version>2.4.1</kafka.version>
@@ -105,6 +105,57 @@
                         <goals>
                             <goal>single</goal>
                         </goals>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
+                <groupId>io.confluent</groupId>
+                <artifactId>kafka-connect-maven-plugin</artifactId>
+                <version>0.11.2</version>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>kafka-connect</goal>
+                        </goals>
+                        <configuration>
+                            <title>Kafka Connect Scalyr Sink</title>
+                            <documentationUrl>https://github.com/scalyr/kafka-connect-scalyr/blob/master/README.md</documentationUrl>
+                            <description>
+                                The Scalyr sink connector moves log data from Kafka topics into Scalyr.
+                                The supported log source is Elastic Filebeat.
+                            </description>
+
+                            <ownerUsername>scalyr</ownerUsername>
+                            <ownerType>organization</ownerType>
+                            <ownerName>Scalyr</ownerName>
+                            <ownerUrl>https://www.scalyr.com</ownerUrl>
+
+                            <supportProviderName>Scalyr</supportProviderName>
+                            <supportSummary>Scalyr Support</supportSummary>
+                            <supportUrl>https://support.scalyr.com</supportUrl>
+
+                            <confluentControlCenterIntegration>false</confluentControlCenterIntegration>
+
+                            <componentTypes>
+                                <componentType>sink</componentType>
+                            </componentTypes>
+
+                            <tags>
+                                <tag>scalyr</tag>
+                                <tag>logging</tag>
+                                <tag>logs</tag>
+                                <tag>observability</tag>
+                                <tag>search</tag>
+                            </tags>
+
+                            <requirements>scalyr</requirements>
+
+                            <deliveryGuarantee>
+                                <deliveryGuarantee>atLeastOnce</deliveryGuarantee>
+                            </deliveryGuarantee>
+
+                            <kafkaConnectApi>true</kafkaConnectApi>
+                        </configuration>
                     </execution>
                 </executions>
             </plugin>
