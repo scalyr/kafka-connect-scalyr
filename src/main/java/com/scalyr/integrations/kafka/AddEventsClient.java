@@ -36,6 +36,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * AddEventsClients provides abstraction for making Scalyr addEvents API calls.
@@ -49,12 +50,18 @@ public class AddEventsClient implements AutoCloseable {
 
   private final CloseableHttpClient client = HttpClients.createDefault();
   private final ObjectMapper objectMapper = new ObjectMapper();
-  private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+  private final ExecutorService senderThread = Executors.newSingleThreadExecutor();
   private final HttpPost httpPost;
   private final String apiKey;
   private final long addEventsTimeoutMs;
   private final int initialBackoffDelayMs;
   private final Compressor compressor;
+
+  /**
+   * Performs sleep for specified time period is ms.  In tests, this can be a Mockable sleep.
+   * @param sleepMs Time in millisecs to sleep.
+   */
+  private final Consumer<Long> sleep;
 
   /** Session ID per Task */
   private final String sessionId = UUID.randomUUID().toString();
@@ -68,15 +75,26 @@ public class AddEventsClient implements AutoCloseable {
   private static final AddEventsResponse TIMEOUT_ADD_EVENTS_RESPONSE = new AddEventsResponse().setStatus("Timeout").setMessage("Timeout");
 
   /**
+   * AddEventsClient which allows a mockable sleep for testing.
+   * @param sleep Mockable sleep implementation.  If null, default implementation which sleeps will be used.
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor) {
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable Consumer<Long> sleep) {
     this.apiKey = apiKey;
     this.addEventsTimeoutMs = addEventsTimeoutMs;
     this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
+    this.sleep = sleep != null ? sleep : (timeMs) -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
     this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
     addHeaders();
+  }
+
+  /**
+   * AddEventsClient with default sleep implementation, which performs sleep.
+   * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
+   */
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor) {
+    this(scalyrUrl, apiKey, addEventsTimeoutMs, initialBackoffDelayMs, compressor, null);
   }
 
   /**
@@ -109,7 +127,7 @@ public class AddEventsClient implements AutoCloseable {
         return dependentAddEvents;
       }
 
-      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(outputStream.toByteArray(), startTimeMs), executorService);
+      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(outputStream.toByteArray(), startTimeMs), senderThread);
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
       CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture();
@@ -134,7 +152,7 @@ public class AddEventsClient implements AutoCloseable {
   private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long startTimeMs) {
     log.debug("addEvents payload size {} bytes", addEventsPayload.length);
     AddEventsResponse addEventsResponse = TIMEOUT_ADD_EVENTS_RESPONSE;
-    int delayTimeMs = initialBackoffDelayMs;
+    long delayTimeMs = initialBackoffDelayMs;
     httpPost.setEntity(new ByteArrayEntity(addEventsPayload));
 
     boolean shouldCallAddEvents = remainingMs(startTimeMs) > 0;
@@ -152,12 +170,8 @@ public class AddEventsClient implements AutoCloseable {
       }
 
       shouldCallAddEvents = remainingMs(startTimeMs) > delayTimeMs;
-
       if (shouldCallAddEvents) {
-        // To prevent sleep during tests, tests should start mockable timer at 0 and increment up to addEventsTimeoutMs
-        if (ScalyrUtil.currentTimeMillis() > addEventsTimeoutMs) {
-          Uninterruptibles.sleepUninterruptibly(delayTimeMs, TimeUnit.MILLISECONDS);
-        }
+        sleep.accept(delayTimeMs);
         delayTimeMs = delayTimeMs * 2;
       }
     }

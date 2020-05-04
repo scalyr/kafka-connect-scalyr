@@ -1,7 +1,6 @@
 package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import okhttp3.mockwebserver.MockResponse;
@@ -19,7 +18,6 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -135,23 +133,19 @@ public class ScalyrSinkTaskTest {
   public void testPutErrorHandling() {
     final int numRequests = 3;
     int requestCount = 0;
-    AtomicInteger tryCount = new AtomicInteger();
+    TestUtils.MockSleep mockSleep = new TestUtils.MockSleep();
+    this.scalyrSinkTask = new ScalyrSinkTask(mockSleep.sleep);
     MockWebServer server = new MockWebServer();
-
-    // Advance mockable clock when MockHttpServer request occurs
-    server.setDispatcher(new TestUtils.CustomActionDispatcher(() ->
-      ScalyrUtil.advanceCustomTimeMs((long)Math.pow(2, tryCount.getAndIncrement()) * TestValues.ADD_EVENTS_RETRY_DELAY_MS)));
 
     startTask(server);
 
     // Error first request
-    ScalyrUtil.setCustomTimeNs(0);
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY));
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
     scalyrSinkTask.waitForRequestsToComplete();
     assertEquals(requestCount += TestValues.EXPECTED_NUM_RETRIES, server.getRequestCount());
-    ScalyrUtil.removeCustomTime();
+    assertEquals(TestValues.EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
 
     // Additional requests should have errors
     final int currentRequestCount = requestCount;

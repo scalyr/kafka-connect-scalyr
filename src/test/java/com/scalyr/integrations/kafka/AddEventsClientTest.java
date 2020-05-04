@@ -24,12 +24,12 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static com.scalyr.integrations.kafka.TestUtils.fails;
+import static com.scalyr.integrations.kafka.TestUtils.MockSleep;
 import static com.scalyr.integrations.kafka.TestValues.*;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
@@ -214,44 +214,40 @@ public class AddEventsClientTest {
    */
   @Test
   public void testAddEventsClientErrors() throws Exception {
-    AtomicInteger tryCount = new AtomicInteger();
     int requestCount = 0;
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
-
-    // Advance mockable clock when MockHttpServer request occurs
-    server.setDispatcher(new TestUtils.CustomActionDispatcher(() ->
-      ScalyrUtil.advanceCustomTimeMs((long)Math.pow(2, tryCount.getAndIncrement()) * ADD_EVENTS_RETRY_DELAY_MS)));
+    MockSleep mockSleep = new MockSleep();
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockSleep.sleep);
 
     // Server Too Busy
-    ScalyrUtil.setCustomTimeNs(0);
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
-    AddEventsResponse addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(20, TimeUnit.SECONDS);
+    AddEventsResponse addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
     assertEquals("serverTooBusy", addEventsResponse.getStatus());
     assertEquals(requestCount += EXPECTED_NUM_RETRIES, server.getRequestCount());
+    assertEquals(EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
 
     // Client Bad Request
-    ScalyrUtil.setCustomTimeNs(0);
-    tryCount.set(0);
+    mockSleep.reset();
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM));
     addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
     assertEquals(AddEventsResponse.CLIENT_BAD_PARAM, addEventsResponse.getStatus());
     assertEquals(++requestCount, server.getRequestCount());
+    assertEquals(0, mockSleep.sleepTime.get());
 
     // Empty Response
-    ScalyrUtil.setCustomTimeNs(0);
-    tryCount.set(0);
+    mockSleep.reset();
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(200).setBody(""));
     addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
     assertEquals("emptyResponse", addEventsResponse.getStatus());
     assertEquals(requestCount + EXPECTED_NUM_RETRIES, server.getRequestCount());
+    assertEquals(EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
 
     // IOException
     // Doesn't actually hit MockHttpServer, so cannot advance MockableTimer.
-    // Remove MockableTimer and use short timeout
-    ScalyrUtil.removeCustomTime();
-    addEventsClient = new AddEventsClient("http://localhost", API_KEY_VALUE, 100, 1, compressor);
+    mockSleep.reset();
+    addEventsClient = new AddEventsClient("http://localhost", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockSleep.sleep);
     addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.MINUTES);
     assertEquals("IOException", addEventsResponse.getStatus());
+    assertEquals(EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
   }
 
   /**
@@ -305,15 +301,10 @@ public class AddEventsClientTest {
    */
   @Test
   public void testDependentRequestsError() throws Exception {
-    AtomicInteger tryCount = new AtomicInteger(0);
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
-
-    // Advance mockable clock when MockHttpServer request occurs
-    server.setDispatcher(new TestUtils.CustomActionDispatcher(() ->
-      ScalyrUtil.advanceCustomTimeMs((long)Math.pow(2, tryCount.getAndIncrement()) * ADD_EVENTS_RETRY_DELAY_MS)));
+    MockSleep mockSleep = new MockSleep();
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockSleep.sleep);
 
     // MockWebServer response with server busy response for first request
-    ScalyrUtil.setCustomTimeNs(0);
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
@@ -325,6 +316,7 @@ public class AddEventsClientTest {
     assertEquals(addEventsResponse1, addEventsResponse2);
     assertFalse(addEventsResponse1.isSuccess());
     assertEquals(EXPECTED_NUM_RETRIES, server.getRequestCount());
+    assertEquals(EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
   }
 
   /**
@@ -348,14 +340,13 @@ public class AddEventsClientTest {
   @Ignore("Test is slow and should not be included in automated testing")
   @Test
   public void testRetryWithoutFakeClock() throws Exception {
-    final int expectedNumRequests = 5;
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
 
     // Server Too Busy
-    IntStream.range(0, expectedNumRequests).forEach(i -> server.enqueue(new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY)));
+    TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
     AddEventsResponse addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(ADD_EVENTS_TIMEOUT_MS, TimeUnit.SECONDS);
     assertEquals("serverTooBusy", addEventsResponse.getStatus());
-    assertEquals(expectedNumRequests, server.getRequestCount());
+    assertEquals(EXPECTED_NUM_RETRIES, server.getRequestCount());
   }
 
   /**

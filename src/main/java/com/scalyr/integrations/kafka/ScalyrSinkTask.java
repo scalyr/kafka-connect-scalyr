@@ -12,11 +12,13 @@ import org.apache.kafka.connect.sink.SinkTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 /**
@@ -30,8 +32,26 @@ public class ScalyrSinkTask extends SinkTask {
   private EventMapper eventMapper;
   private int addEventsTimeoutMs;
 
+  /** Mockable sleep implementation for testing.  Always null when not in test. */
+  @Nullable private final Consumer<Long> sleep;
+
   private CompletableFuture<AddEventsResponse> pendingAddEvents = null;
   private volatile ConnectException lastError = null;
+
+  /**
+   * Default constructor called by Kafka Connect.
+   */
+  public ScalyrSinkTask() {
+    sleep = null;  // Default sleep implementation used.
+  }
+
+  /**
+   * Only used for testing to provide mockable sleep implementation.
+   * @param sleep Mock sleep implementation
+   */
+  @VisibleForTesting ScalyrSinkTask (@Nullable Consumer<Long> sleep) {
+    this.sleep = sleep;
+  }
 
   @Override
   public String version() {
@@ -50,7 +70,8 @@ public class ScalyrSinkTask extends SinkTask {
     this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG),
       sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(), addEventsTimeoutMs,
       sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG),
-      CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG), sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)));
+      CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG), sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
+      sleep);
     this.eventMapper = new EventMapper();
   }
 

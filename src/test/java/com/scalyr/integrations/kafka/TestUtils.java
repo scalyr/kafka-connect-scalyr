@@ -6,11 +6,8 @@ import com.scalyr.integrations.kafka.mapping.FilebeatMessageMapperTest;
 import com.scalyr.integrations.kafka.mapping.SinkRecordValueCreator;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
-import okhttp3.mockwebserver.QueueDispatcher;
-import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.jetbrains.annotations.NotNull;
 
 import java.util.Collection;
 import java.util.HashMap;
@@ -18,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -160,23 +159,23 @@ public class TestUtils {
   }
 
   /**
-   * {@link MockWebServer} Custom Dispatcher that performs `dispatchPreaction` before dispatch is called.
+   * Mock sleep implementation
    */
-  public static class CustomActionDispatcher extends QueueDispatcher {
-    private final Runnable dispatchPreaction;
+  public static class MockSleep {
 
-    /**
-     * @param dispatchPreaction Preaction to run before dispatch is called.
-     */
-    public CustomActionDispatcher(Runnable dispatchPreaction) {
-      this.dispatchPreaction = dispatchPreaction;
+    public MockSleep() {
+      ScalyrUtil.setCustomTimeNs(0);
     }
 
-    @NotNull
-    @Override
-    public MockResponse dispatch(@NotNull RecordedRequest recordedRequest) throws InterruptedException {
-      dispatchPreaction.run();
-      return super.dispatch(recordedRequest);
+    public final AtomicLong sleepTime = new AtomicLong();
+    public final Consumer<Long> sleep = (timeMs) -> {
+      sleepTime.addAndGet(timeMs);
+      ScalyrUtil.advanceCustomTimeMs(timeMs);
+    };
+
+    public void reset() {
+      sleepTime.set(0);
+      ScalyrUtil.setCustomTimeNs(0);
     }
   }
 }
