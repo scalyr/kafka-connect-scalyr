@@ -33,6 +33,8 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
   public static final String EVENT_ENRICHMENT_CONFIG = "event_enrichment";
   private static final String EVENT_ENRICHMENT_DOC = "Additional attributes to add the the Scalyr log event specified as a comma separated list of key value pairs.  "
     + "All events uploaded by this connector will have these attributes.  Values should not have any spaces.";
+  public static final String BATCH_SEND_SIZE_BYTES_CONFIG = "batch_send_size_bytes";
+  private static final String BATCH_SEND_SIZE_BYTES_DOC = "Batch size that must be reached before events are sent.  This is to buffer events into larger batches for increased throughput.";
 
 
   public ScalyrSinkConnectorConfig(Map<String, String> parsedConfig) {
@@ -47,7 +49,8 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         .define(COMPRESSION_LEVEL_CONFIG, Type.INT, null, Importance.LOW, COMPRESSION_LEVEL_DOC)
         .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, 20_000, Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
         .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, 1000, Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
-        .define(EVENT_ENRICHMENT_CONFIG, Type.LIST, null, enrichmentValidator, Importance.LOW, EVENT_ENRICHMENT_DOC);
+        .define(EVENT_ENRICHMENT_CONFIG, Type.LIST, null, enrichmentValidator, Importance.LOW, EVENT_ENRICHMENT_DOC)
+        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, 2_000_000, Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC);
   }
 
   /**

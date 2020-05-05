@@ -13,14 +13,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Kafka Connect Scalyr Sink Task
@@ -36,8 +39,11 @@ public class ScalyrSinkTask extends SinkTask {
   /** Mockable sleep implementation for testing.  Always null when not in test. */
   @Nullable private final Consumer<Long> sleep;
 
-  private CompletableFuture<AddEventsResponse> pendingAddEvents = null;
-  private volatile ConnectException lastError = null;
+  private CompletableFuture<AddEventsResponse> pendingAddEvents;
+  private volatile ConnectException lastError;
+  private final EventBuffer eventBuffer = new EventBuffer();
+
+  private int batchSendSizeBytes;
 
   /**
    * Default constructor called by Kafka Connect.
@@ -68,6 +74,7 @@ public class ScalyrSinkTask extends SinkTask {
   public void start(Map<String, String> configProps) {
     ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
     this.addEventsTimeoutMs = sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG);
+    this.batchSendSizeBytes = sinkConfig.getInt(ScalyrSinkConnectorConfig.BATCH_SEND_SIZE_BYTES_CONFIG);
     this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG),
       sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(), addEventsTimeoutMs,
       sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG),
@@ -79,6 +86,7 @@ public class ScalyrSinkTask extends SinkTask {
 
   /**
    * Sends the records to Scalyr using the addEvents API.
+   * Buffers events until `batchSendSizeBytes` is met.
    * If there are any failures since the last flush,
    * throw an error to pause additional put batches until flush is called.
    *
@@ -100,24 +108,42 @@ public class ScalyrSinkTask extends SinkTask {
       throw lastError;
     }
 
-    List<Event> events = records.stream()
-      .map(eventMapper::createEvent)
-      .collect(Collectors.toList());
+    Stream<Event> events = records.stream()
+      .map(eventMapper::createEvent);
 
-    pendingAddEvents = addEventsClient.log(events, pendingAddEvents).whenComplete(this::processResponse);
+    eventBuffer.addEvents(events);
+    if (eventBuffer.msgBytes() >= batchSendSizeBytes) {
+      sendEvents();
+    }
+  }
+
+  /**
+   * Call addEvents with EventBuffer
+   */
+  private void sendEvents() {
+    PerfStats perfStats = new PerfStats(log);
+    perfStats.recordEvents(eventBuffer);
+    pendingAddEvents = addEventsClient.log(eventBuffer.getEvents(), pendingAddEvents).whenComplete(this::processResponse);
+    pendingAddEvents.thenRun(perfStats::close);
+    eventBuffer.clear();
   }
 
   /**
    * Flush all records that have been {@link #put(Collection)} for the specified topic-partitions.
-   * 1) Wait for addEvents requests to complete.
-   * 2) If any errors occurred, then clear the errors since the previous flush.
+   * 1) Send events in the event buffer
+   * 2) Wait for addEvents requests to complete.
+   * 3) If any errors occurred, then clear the errors since the previous flush.
    *    and throw an Exception so everything since the last successful offset commit will be retried.
    *
    * @param currentOffsets the current offset state as of the last call to {@link #put(Collection)}}
    */
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
-    // Wait for all addEvents requests to complete
+    if (eventBuffer.length() > 0) {
+      sendEvents();
+    }
+
+    // Wait for in-flight addEvents requests to complete
     waitForRequestsToComplete();
 
     // Clear the responses for the next flush cycle
@@ -201,5 +227,82 @@ public class ScalyrSinkTask extends SinkTask {
     return eventEnrichment.stream()
       .map(pair -> pair.split("=", 2))
       .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
+  }
+
+  /**
+   * Buffer for Events to send larger addEvents batch size.
+   */
+  private static class EventBuffer {
+    private final List<Event> eventBuffer = new ArrayList<>(2000);
+    private final AtomicInteger msgSize = new AtomicInteger();
+
+    public void addEvents(Stream<Event> events) {
+      events.forEach(event -> {
+        eventBuffer.add(event);
+        msgSize.addAndGet(event.size());
+      });
+    }
+
+    /**
+     * @return Number of events
+     */
+    public int length() {
+      return eventBuffer.size();
+    }
+
+    /**
+     * @return Sum of event messages size
+     */
+    public int msgBytes() {
+      return msgSize.get();
+    }
+
+    /**
+     * @return Buffered Events
+     */
+    public List<Event> getEvents() {
+      return eventBuffer;
+    }
+
+    /**
+     * Clears the event buffer
+     */
+    public void clear() {
+      eventBuffer.clear();
+      msgSize.set(0);
+    }
+  }
+
+  /**
+   * Captures performance stats when debug log is enabled.
+   */
+  private static class PerfStats implements AutoCloseable {
+    private final Logger log;
+    private final long startTime = System.currentTimeMillis();
+    private int numRecords;
+    private int msgBytes;
+
+    public PerfStats(Logger log) {
+      this.log = log;
+    }
+
+    public void recordEvents(EventBuffer eventBuffer) {
+      if (log.isDebugEnabled()) {
+        numRecords = eventBuffer.length();
+        msgBytes = eventBuffer.msgBytes();
+      }
+    }
+
+    /**
+     * Close should be called when the addEvents call completes to log the performance stats.
+     */
+    @Override
+    public void close() {
+      if (log.isDebugEnabled()) {
+        long timeMs = System.currentTimeMillis() - startTime;
+        log.debug("Processed numRecords {}, message bytes {} in {} millisecs, {} MB/sec",
+          numRecords, msgBytes, timeMs, (timeMs == 0 ? 0 : (msgBytes / (double)(timeMs) / 1000)));
+      }
+    }
   }
 }
