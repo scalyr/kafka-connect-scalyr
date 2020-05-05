@@ -140,7 +140,9 @@ public class ScalyrSinkTask extends SinkTask {
         pendingAddEvents.get(addEventsTimeoutMs, TimeUnit.MILLISECONDS);
       }
     } catch (Exception e) {
-      throw new RetriableException(e);
+      // AddEventsClient returns all errors in AddEventsResponse and does not throw Exceptions
+      // Any Exception here is from the CompletableFuture.get (e.g. TimeoutException) and is retriable
+      lastError = new RetriableException(e);
     }
   }
 

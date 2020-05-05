@@ -159,20 +159,33 @@ public class TestUtils {
   }
 
   /**
-   * Mock sleep implementation
+   * Mock sleep implementation.
+   * Tracks total time slept so sleep time and be verified
+   * and advances the ScalyrUtil mockable timer to simulate time advancing.
    */
   public static class MockSleep {
 
-    public MockSleep() {
-      ScalyrUtil.setCustomTimeNs(0);
-    }
-
+    /**
+     * Total time slept
+     */
     public final AtomicLong sleepTime = new AtomicLong();
+
+    /**
+     * Sleep lambda should be called in place of actual sleep
+     */
     public final Consumer<Long> sleep = (timeMs) -> {
       sleepTime.addAndGet(timeMs);
       ScalyrUtil.advanceCustomTimeMs(timeMs);
     };
 
+    public MockSleep() {
+      ScalyrUtil.setCustomTimeNs(0);
+    }
+
+    /**
+     * Resets the total sleep time and mockable clock.
+     * Should be called each time a new sleep duration needs to be measured.
+     */
     public void reset() {
       sleepTime.set(0);
       ScalyrUtil.setCustomTimeNs(0);
