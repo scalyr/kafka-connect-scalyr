@@ -22,6 +22,7 @@ public class CompressorFactoryTest {
   private static byte[] testData;
 
   private static final String DEFLATE = "deflate";
+  private static final String ZSTD = "zstd";
   private static final String NONE = "none";
   private static final int testDataSize = 4000;
 
@@ -60,6 +61,36 @@ public class CompressorFactoryTest {
     CompressorFactory.getCompressor(DEFLATE, 0);
     CompressorFactory.getCompressor(DEFLATE, 9);
     CompressorFactory.getCompressor(DEFLATE, null);
+  }
+
+  /**
+   * Round trip test of deflate and inflate
+   */
+  @Test
+  public void testZStandard() throws IOException {
+    Compressor compressor = CompressorFactory.getCompressor(ZSTD, null);
+    ByteArrayOutputStream compressedOutputStream = new ByteArrayOutputStream();
+    try (OutputStream uncompressedOutputStream = compressor.newStreamCompressor(compressedOutputStream)) {
+      uncompressedOutputStream.write(testData);
+    }
+
+    InputStream decompressedInputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(compressedOutputStream.toByteArray()));
+    assertArrayEquals(testData, ByteStreams.toByteArray(decompressedInputStream));
+    assertEquals("zstd", compressor.getContentEncoding());
+  }
+
+  /**
+   * Verify invalid and valid deflate compression levels
+   */
+  @Test
+  public void testZStandardCompressionLevel() {
+    fails(() -> CompressorFactory.getCompressor(ZSTD, 23), IllegalArgumentException.class);
+    fails(() -> CompressorFactory.getCompressor(ZSTD, -1), IllegalArgumentException.class);
+
+    // Boundary conditions - ok
+    CompressorFactory.getCompressor(ZSTD, 0);
+    CompressorFactory.getCompressor(ZSTD, 22);
+    CompressorFactory.getCompressor(ZSTD, null);
   }
 
   /**
