@@ -4,6 +4,8 @@ import com.google.common.collect.ImmutableList;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.FilebeatMessageMapperTest;
 import com.scalyr.integrations.kafka.mapping.SinkRecordValueCreator;
+import okhttp3.mockwebserver.MockResponse;
+import okhttp3.mockwebserver.MockWebServer;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.sink.SinkRecord;
 
@@ -13,6 +15,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -145,5 +149,46 @@ public class TestUtils {
       }
     }
     if (succeeded) fail("call should have thrown exception, but did not!");
+  }
+
+  /**
+   * AddEventsClient performs retries on failure.  Enqueue {@link TestValues#EXPECTED_NUM_RETRIES} MockResponses to the server.
+   */
+  public static void addMockResponseWithRetries(MockWebServer server, MockResponse mockResponse) {
+    IntStream.range(0, TestValues.EXPECTED_NUM_RETRIES).forEach(i -> server.enqueue(mockResponse));
+  }
+
+  /**
+   * Mock sleep implementation.
+   * Tracks total time slept so sleep time and be verified
+   * and advances the ScalyrUtil mockable timer to simulate time advancing.
+   */
+  public static class MockSleep {
+
+    /**
+     * Total time slept
+     */
+    public final AtomicLong sleepTime = new AtomicLong();
+
+    /**
+     * Sleep lambda should be called in place of actual sleep
+     */
+    public final Consumer<Long> sleep = (timeMs) -> {
+      sleepTime.addAndGet(timeMs);
+      ScalyrUtil.advanceCustomTimeMs(timeMs);
+    };
+
+    public MockSleep() {
+      ScalyrUtil.setCustomTimeNs(0);
+    }
+
+    /**
+     * Resets the total sleep time and mockable clock.
+     * Should be called each time a new sleep duration needs to be measured.
+     */
+    public void reset() {
+      sleepTime.set(0);
+      ScalyrUtil.setCustomTimeNs(0);
+    }
   }
 }

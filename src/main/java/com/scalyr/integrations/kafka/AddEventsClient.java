@@ -8,17 +8,21 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.base.Preconditions;
+import com.google.common.util.concurrent.Uninterruptibles;
+import com.scalyr.api.internal.ScalyrUtil;
 import org.apache.http.HttpStatus;
 import org.apache.http.client.methods.CloseableHttpResponse;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
+import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
-import org.apache.http.entity.EntityTemplate;
 import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import javax.annotation.Nullable;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.URI;
@@ -27,7 +31,12 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 
 /**
  * AddEventsClients provides abstraction for making Scalyr addEvents API calls.
@@ -41,9 +50,18 @@ public class AddEventsClient implements AutoCloseable {
 
   private final CloseableHttpClient client = HttpClients.createDefault();
   private final ObjectMapper objectMapper = new ObjectMapper();
+  private final ExecutorService senderThread = Executors.newSingleThreadExecutor();
   private final HttpPost httpPost;
   private final String apiKey;
+  private final long addEventsTimeoutMs;
+  private final int initialBackoffDelayMs;
   private final Compressor compressor;
+
+  /**
+   * Performs sleep for specified time period is ms.  In tests, this can be a Mockable sleep.
+   * @param sleepMs Time in millisecs to sleep.
+   */
+  private final Consumer<Long> sleep;
 
   /** Session ID per Task */
   private final String sessionId = UUID.randomUUID().toString();
@@ -52,37 +70,154 @@ public class AddEventsClient implements AutoCloseable {
     + " JVM/" + System.getProperty("java.version");
 
   /**
+   * Default Timeout Add Events Response
+   */
+  private static final AddEventsResponse TIMEOUT_ADD_EVENTS_RESPONSE = new AddEventsResponse().setStatus("Timeout").setMessage("Timeout");
+
+  /**
+   * AddEventsClient which allows a mockable sleep for testing.
+   * @param sleep Mockable sleep implementation.  If null, default implementation which sleeps will be used.
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(String scalyrUrl, String apiKey, Compressor compressor) {
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable Consumer<Long> sleep) {
     this.apiKey = apiKey;
+    this.addEventsTimeoutMs = addEventsTimeoutMs;
+    this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
+    this.sleep = sleep != null ? sleep : (timeMs) -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
     this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
     addHeaders();
   }
 
   /**
-   * Make addEvents POST API call to Scalyr with the events object.
+   * AddEventsClient with default sleep implementation, which performs sleep.
+   * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public void log(List<Event> events) throws Exception {
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor) {
+    this(scalyrUrl, apiKey, addEventsTimeoutMs, initialBackoffDelayMs, compressor, null);
+  }
+
+  /**
+   * Make async addEvents POST API call to Scalyr with the events object.
+   *
+   * Pipelining is supported through the following:
+   * 1) Serialization and compression on the callers thread.
+   * 2) addEvents API call is done on a SingleThreadExecutor to only allow one addEvents call at a time.
+   *
+   * @param events Events to send to Scalyr using addEvents API
+   * @param dependentAddEvents Dependent `log` CompletableFuture which must complete before `addEvents` API call is made.
+   * `dependentAddEvents` enforces ordering of Events in a session.
+   * `dependentAddEvents` failures causes the current `log` call to also fail.
+   */
+  public CompletableFuture<AddEventsResponse> log(List<Event> events, @Nullable CompletableFuture<AddEventsResponse> dependentAddEvents) {
     log.debug("Calling addEvents with {} events", events.size());
+    try {
+      long startTimeMs = ScalyrUtil.currentTimeMillis();
+      AddEventsRequest addEventsRequest = new AddEventsRequest()
+        .setSession(sessionId)
+        .setToken(apiKey)
+        .setEvents(events);
 
-    AddEventsRequest addEventsRequest = new AddEventsRequest()
-      .setSession(sessionId)
-      .setToken(apiKey)
-      .setEvents(events);
+      ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+      addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
 
-    httpPost.setEntity(new EntityTemplate(outputStream -> addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream))));
-    try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
-      AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
-      log.debug("post http code {}, httpResponse {} ", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
-      if (httpResponse.getStatusLine().getStatusCode() != HttpStatus.SC_OK || !AddEventsResponse.SUCCESS.equals(addEventsResponse.getStatus())) {
-        throw new RuntimeException("addEvents failed with http code " + httpResponse.getStatusLine().getStatusCode()
-          + ", message " + addEventsResponse);
+      // Wait for dependent addEvents call to complete and return dependent failed future if failed
+      if (dependentAddEvents != null && !dependentAddEvents.get(remainingMs(startTimeMs), TimeUnit.MILLISECONDS).isSuccess()) {
+        log.warn("Dependent addEvents call failed");
+        return dependentAddEvents;
       }
+
+      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(outputStream.toByteArray(), startTimeMs), senderThread);
+    } catch (Exception e) {
+      log.warn("AddEventsClient.log error", e);
+      CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture();
+      errorFuture.complete(new AddEventsResponse().setStatus("Exception").setMessage(e.toString()));
+      return errorFuture;
     }
   }
 
+  /**
+   * Convenience function for {@link #log(List, CompletableFuture)} that does not have a dependent addEvents call.
+   */
+  public CompletableFuture<AddEventsResponse> log(List<Event> events) {
+    return log(events, null);
+  }
+
+  /**
+   * Call Scalyr addEvents API with {@link #addEventsTimeoutMs} using exponential backoff.
+   * @param addEventsPayload byte[] addEvents payload
+   * @param startTimeMs time in ms from epoch when `log` is called.  Used to enforce `addEventsTimeoutMs` deadline.
+   * @return AddEventsResponse
+   */
+  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long startTimeMs) {
+    log.debug("addEvents payload size {} bytes", addEventsPayload.length);
+    AddEventsResponse addEventsResponse = TIMEOUT_ADD_EVENTS_RESPONSE;
+    long delayTimeMs = initialBackoffDelayMs;
+    httpPost.setEntity(new ByteArrayEntity(addEventsPayload));
+
+    boolean shouldCallAddEvents = remainingMs(startTimeMs) > 0;
+    while (shouldCallAddEvents) {
+      try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
+        addEventsResponse = parseAddEventsResponse(httpResponse);
+        log.debug("post http code {}, httpResponse {}", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
+        // return on success or non-retriable error
+        if (addEventsResponse.isSuccess() || !addEventsResponse.isRetriable()) {
+          return addEventsResponse;
+        }
+      } catch (IOException e) {
+        log.warn("Error calling Scalyr addEvents API", e);
+        addEventsResponse = new AddEventsResponse().setStatus("IOException").setMessage(e.toString());
+      }
+
+      shouldCallAddEvents = remainingMs(startTimeMs) > delayTimeMs;
+      if (shouldCallAddEvents) {
+        sleep.accept(delayTimeMs);
+        delayTimeMs = delayTimeMs * 2;
+      }
+    }
+
+    return addEventsResponse;
+  }
+
+  /**
+   * Convert httpResponse into AddEventsResponse, handling different error conditions.
+   * @param httpResponse HTTP response from the addEvents call
+   * @return AddEventsResponse
+   */
+  private AddEventsResponse parseAddEventsResponse(CloseableHttpResponse httpResponse) {
+    final int statusCode = httpResponse.getStatusLine().getStatusCode();
+    final long responseLength = httpResponse.getEntity().getContentLength();
+
+    if (responseLength == 0) {
+      log.warn("addEvents received empty response, server may have reset connection.");
+      return new AddEventsResponse().setStatus("emptyResponse");
+    }
+
+    if (statusCode == 429) {
+      log.warn("addEvents received \"too busy\" response from server.");
+      return new AddEventsResponse().setStatus("serverTooBusy");
+    }
+
+    try {
+      AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
+
+      // Success
+      if (statusCode == HttpStatus.SC_OK && addEventsResponse.isSuccess()) {
+        return addEventsResponse;
+      }
+
+      if (AddEventsResponse.CLIENT_BAD_PARAM.equals(addEventsResponse.getStatus())) {
+        log.error("addEvents failed due to a bad parameter value.  This may be caused by an invalid write logs api key in the configuration");
+        return addEventsResponse;
+      }
+
+      log.warn("addEvents failed with {}", addEventsResponse);
+      return addEventsResponse;
+    } catch (IOException e) {
+      log.error("Could not parse addEvents response", e);
+      return new AddEventsResponse().setStatus("parseResponseFailed");
+    }
+  }
 
   /**
    * Validates url and creates addEvents Scalyr URL
@@ -114,6 +249,14 @@ public class AddEventsClient implements AutoCloseable {
     httpPost.addHeader("Connection", "Keep-Alive");
     httpPost.addHeader("User-Agent", userAgent);
     httpPost.addHeader("Content-Encoding", compressor.getContentEncoding());
+  }
+
+  /**
+   * @param startTimeMs Start time ms of {@link #log(List, CompletableFuture)} call
+   * @return Time ms remaining of the addEventsTimeoutMs deadline
+   */
+  private long remainingMs(long startTimeMs) {
+    return Math.max(addEventsTimeoutMs - (ScalyrUtil.currentTimeMillis() - startTimeMs), 0);
   }
 
   @Override
@@ -291,6 +434,7 @@ public class AddEventsClient implements AutoCloseable {
   @JsonIgnoreProperties(ignoreUnknown = true)  // ignore bytesCharged
   public static class AddEventsResponse {
     public static final String SUCCESS = "success";
+    public static final String CLIENT_BAD_PARAM = "error/client/badParam";
 
     private String status;
     private String message;
@@ -311,6 +455,19 @@ public class AddEventsClient implements AutoCloseable {
     public AddEventsResponse setMessage(String message) {
       this.message = message;
       return this;
+    }
+
+    public boolean isSuccess() {
+      return SUCCESS.equals(getStatus());
+    }
+
+    /**
+     * Client bad param indicates a client request error such as invalid api token and should not be retried.
+     * Success also should not be retried.
+     * @return true if this response should be retried
+     */
+    public boolean isRetriable() {
+      return !CLIENT_BAD_PARAM.equals(getStatus()) && !SUCCESS.equals(getStatus());
     }
 
     @Override
