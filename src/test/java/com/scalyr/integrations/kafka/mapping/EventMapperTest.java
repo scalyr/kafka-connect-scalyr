@@ -31,12 +31,12 @@ public class EventMapperTest {
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
-  private static final List<List<String>> testEnrichmentAttrs =
-    Arrays.asList(null, Arrays.asList(TestValues.ENRICHMENT_VALUE.split(","))); // Test without and with enrichment
+  private static final List<Map<String, String>> testEnrichmentAttrs =
+    Arrays.asList(null, TestUtils.makeMap("env", "qa test", "org", "Scalyr Inc")); // Test without and with enrichment
   private static final AtomicInteger offset = new AtomicInteger();
 
   private final Supplier<Object> recordValue;
-  private final List<String> enrichmentAttrs;
+  private final Map<String, String> enrichmentAttrs;
   private EventMapper eventMapper;
 
   /**
@@ -50,7 +50,7 @@ public class EventMapperTest {
       .collect(Collectors.toList());
   }
 
-  public EventMapperTest(Supplier<Object> recordValue, List<String> enrichmentAttrs) {
+  public EventMapperTest(Supplier<Object> recordValue, Map<String, String> enrichmentAttrs) {
     this.recordValue = recordValue;
     this.enrichmentAttrs = enrichmentAttrs;
   }
@@ -108,19 +108,6 @@ public class EventMapperTest {
     assertEquals(topic, event.getTopic());
     assertEquals(partition, event.getPartition());
     assertEquals(offset.get() - 1, event.getOffset());
-    assertEquals(convertEnrichmentAttrs(enrichmentAttrs), event.getAdditionalAttrs());
-  }
-
-  /**
-   * Convert List<String> of key=value into Map<String, Object>
-   */
-  private Map<String, Object> convertEnrichmentAttrs(List<String> enrichmentAttrs) {
-    if (enrichmentAttrs == null) {
-      return null;
-    }
-
-    return enrichmentAttrs.stream()
-      .map(enrichmentAttr -> enrichmentAttr.split("=", 2))
-      .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
+    assertEquals(enrichmentAttrs, event.getAdditionalAttrs());
   }
 }

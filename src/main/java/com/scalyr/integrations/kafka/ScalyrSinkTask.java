@@ -73,7 +73,7 @@ public class ScalyrSinkTask extends SinkTask {
       CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG),
         sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
       sleep);
-    this.eventMapper = new EventMapper(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG));
+    this.eventMapper = new EventMapper(parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
   }
 
   /**
@@ -184,5 +184,17 @@ public class ScalyrSinkTask extends SinkTask {
     return addEventsResponse.isRetriable()
       ? new RetriableException(addEventsResponse.toString())
       : new ConnectException(addEventsResponse.toString());
+  }
+
+  /**
+   * Parse eventEnrichment config.
+   * Parses [key1=value1, key2=value2] into Map<String, String> of key/value pairs.
+   * @param eventEnrichment {@link ScalyrSinkConnectorConfig#EVENT_ENRICHMENT_CONFIG} value
+   * @return Parsed key/value pairs as Map
+   */
+  @VisibleForTesting Map<String, String> parseEnrichmentAttrs(List<String> eventEnrichment) {
+    return eventEnrichment.stream()
+      .map(pair -> pair.split("=", 2))
+      .collect(Collectors.toMap(keyValue -> keyValue[0].trim(), keyValue -> keyValue[1].trim()));
   }
 }

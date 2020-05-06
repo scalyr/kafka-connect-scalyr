@@ -91,7 +91,7 @@ public class ScalyrSinkTaskTest {
     scalyrSinkTask.put(records);
 
     // Verify sink records are sent to addEvents API
-    EventMapper eventMapper = new EventMapper(new ScalyrSinkConnectorConfig(createConfig()).getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG));
+    EventMapper eventMapper = new EventMapper(scalyrSinkTask.parseEnrichmentAttrs(new ScalyrSinkConnectorConfig(createConfig()).getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());

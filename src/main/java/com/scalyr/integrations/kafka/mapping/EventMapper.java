@@ -23,13 +23,11 @@ public class EventMapper {
   private Map<String, String> enrichmentAttrs;
 
   /**
-   * @param eventEnrichment key value event enrichment attributes as key=value
+   * @param enrichmentAttrs Map<String, String> of enrichment key/value pairs
    */
-  public EventMapper(List<String> eventEnrichment) {
-    if (eventEnrichment != null) {
-      enrichmentAttrs = eventEnrichment.stream()
-        .map(pair -> pair.split("=", 2))
-        .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
+  public EventMapper(Map<String, String> enrichmentAttrs) {
+    if (enrichmentAttrs != null) {
+      this.enrichmentAttrs = enrichmentAttrs;
     }
   }
 
