@@ -70,7 +70,7 @@ public class Event {
   }
 
   public Event setAdditionalAttrs(Map<String, Object> additionalAttrs) {
-    this.additionalAttrs = additionalAttrs;
+    this.additionalAttrs = additionalAttrs == null ? null : new HashMap<>(additionalAttrs);
     return this;
   }
 

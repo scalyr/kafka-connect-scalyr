@@ -32,7 +32,7 @@ public class EventMapperTest {
   private static final String topic = "test-topic";
   private static final int partition = 0;
   private static final List<Map<String, String>> testEnrichmentAttrs =
-    Arrays.asList(null, TestUtils.makeMap("env", "qa test", "org", "Scalyr Inc")); // Test without and with enrichment
+    Arrays.asList(null, TestUtils.makeMap("env", "test", "org", "Scalyr")); // Test without and with enrichment
   private static final AtomicInteger offset = new AtomicInteger();
 
   private final Supplier<Object> recordValue;

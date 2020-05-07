@@ -195,6 +195,6 @@ public class ScalyrSinkTask extends SinkTask {
   @VisibleForTesting Map<String, String> parseEnrichmentAttrs(List<String> eventEnrichment) {
     return eventEnrichment.stream()
       .map(pair -> pair.split("=", 2))
-      .collect(Collectors.toMap(keyValue -> keyValue[0].trim(), keyValue -> keyValue[1].trim()));
+      .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
   }
 }

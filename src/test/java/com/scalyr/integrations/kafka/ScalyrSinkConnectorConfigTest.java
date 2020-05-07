@@ -25,7 +25,7 @@ public class ScalyrSinkConnectorConfigTest {
   private static final String TEST_COMPRESSION_LEVEL = "0";
   private static final String TEST_ADD_EVENTS_TIMEOUT = "32000";
   private static final String TEST_ADD_EVENTS_RETRY_DELAY_MS = "5000";
-  private static final String TEST_EVENT_ENRICHMENT = "env=qa test 2,org=Scalyr Inc.";
+  private static final String TEST_EVENT_ENRICHMENT = "env=qa,org=Scalyr";
 
   /**
    * Test config with all values specified
@@ -103,6 +103,9 @@ public class ScalyrSinkConnectorConfigTest {
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
 
     config.put(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG, "=");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+
+    config.put(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG, "key=value,key2= value2");
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
   }
 

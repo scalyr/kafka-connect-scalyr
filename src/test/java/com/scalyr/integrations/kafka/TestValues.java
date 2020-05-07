@@ -17,7 +17,7 @@ public abstract class TestValues {
   public static final int ADD_EVENTS_RETRY_DELAY_MS = 1000;
   public static final int EXPECTED_NUM_RETRIES = 5; // Expected num of retries with ADD_EVENTS_TIMEOUT_MS and ADD_EVENTS_RETRY_DELAY_MS
   public static final long EXPECTED_SLEEP_TIME_MS = 15_000; // Expected sleep time with ADD_EVENTS_TIMEOUT_MS and ADD_EVENTS_RETRY_DELAY_MS
-  public static final String ENRICHMENT_VALUE = "env=qa test,org=Scalyr Inc";
+  public static final String ENRICHMENT_VALUE = "env=test,org=Scalyr";
 
   public static final String ADD_EVENTS_RESPONSE_SUCCESS;
   public static final String ADD_EVENTS_RESPONSE_SERVER_BUSY;
