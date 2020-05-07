@@ -61,7 +61,13 @@ public class ScalyrSinkTaskTest {
    */
   @Test
   public void testStart()  {
-    scalyrSinkTask.start(createConfig());
+    // With event enrichment
+    Map<String, String> config = createConfig();
+    scalyrSinkTask.start(config);
+
+    // No event enrichment
+    config.remove(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG);
+    scalyrSinkTask.start(config);
   }
 
   /**

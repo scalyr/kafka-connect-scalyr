@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -193,6 +194,10 @@ public class ScalyrSinkTask extends SinkTask {
    * @return Parsed key/value pairs as Map
    */
   @VisibleForTesting Map<String, String> parseEnrichmentAttrs(List<String> eventEnrichment) {
+    if (eventEnrichment == null) {
+      return Collections.EMPTY_MAP;
+    }
+
     return eventEnrichment.stream()
       .map(pair -> pair.split("=", 2))
       .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
