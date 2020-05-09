@@ -432,9 +432,10 @@ public class AddEventsClientTest {
           .setLogfile(TestValues.LOGFILE_VALUE + logFileNum)
           .setServerHost(TestValues.SERVER_VALUE + random.nextInt(numServers))
           .setTimestamp(ScalyrUtil.nanoTime())
-          .addAdditionalAttr("env", "test")
+          .addAdditionalAttr("app", "test")
           .addAdditionalAttr("isTest", true)
-          .addAdditionalAttr("version", 2.3);
+          .addAdditionalAttr("version", 2.3)
+          .setEnrichmentAttrs(ENRICHMENT_VALUE_MAP);
       })
       .collect(Collectors.toList());
   }
@@ -476,6 +477,9 @@ public class AddEventsClientTest {
     assertEquals(origEvent.getServerHost(), logLevelAttrs.get(SERVERHOST));
     assertEquals(origEvent.getLogfile(), logLevelAttrs.get(LOGFILE));
     assertEquals(origEvent.getParser(), logLevelAttrs.get(PARSER));
+    if (origEvent.getEnrichmentAttrs() != null) {
+      origEvent.getEnrichmentAttrs().forEach((key, value) -> assertEquals(value, logLevelAttrs.get(key)));
+    }
 
     // Verify additional event attrs
     if (origEvent.getAdditionalAttrs() != null) {

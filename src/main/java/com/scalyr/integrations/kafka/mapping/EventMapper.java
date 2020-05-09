@@ -56,7 +56,7 @@ public class EventMapper {
       .setLogfile(messageMapper.getLogfile(record))
       .setParser(messageMapper.getParser(record))
       .setMessage(messageMapper.getMessage(record))
-      .setAdditionalAttrs((Map)enrichmentAttrs);
+      .setEnrichmentAttrs(enrichmentAttrs);
   }
 
   /**

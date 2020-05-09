@@ -78,7 +78,7 @@ public class EventMapperTest {
    * Test EventMapper with timestamp in SinkRecord
    */
   @Test
-  public void crateEventWithTimestampTest() {
+  public void createEventWithTimestampTest() {
     // With timestamp
     final long msSinceEpoch = 60 * 1000;  // 1 minute after epoch
     SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, recordValue.get(), offset.getAndIncrement(), msSinceEpoch, TimestampType.CREATE_TIME);
@@ -108,6 +108,6 @@ public class EventMapperTest {
     assertEquals(topic, event.getTopic());
     assertEquals(partition, event.getPartition());
     assertEquals(offset.get() - 1, event.getOffset());
-    assertEquals(enrichmentAttrs, event.getAdditionalAttrs());
+    assertEquals(enrichmentAttrs, event.getEnrichmentAttrs());
   }
 }

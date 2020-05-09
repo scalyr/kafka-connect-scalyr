@@ -376,6 +376,12 @@ public class AddEventsClient implements AutoCloseable {
       if (event.getParser() != null) {
         jsonGenerator.writeStringField("parser", event.getParser());
       }
+
+      if (event.getEnrichmentAttrs() != null) {
+        for (Map.Entry<String, String> entry : event.getEnrichmentAttrs().entrySet()) {
+          jsonGenerator.writeObjectField(entry.getKey(), entry.getValue());
+        }
+      }
       jsonGenerator.writeEndObject();
       jsonGenerator.writeEndObject();
     }
