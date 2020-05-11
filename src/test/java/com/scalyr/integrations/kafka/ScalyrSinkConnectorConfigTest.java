@@ -69,7 +69,7 @@ public class ScalyrSinkConnectorConfigTest {
     assertNull(connectorConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG));
     assertEquals(20000, connectorConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG).intValue());
     assertNull(connectorConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG));
-    assertEquals(2000000, connectorConfig.getInt(ScalyrSinkConnectorConfig.BATCH_SEND_SIZE_BYTES_CONFIG).intValue());
+    assertEquals(4000000, connectorConfig.getInt(ScalyrSinkConnectorConfig.BATCH_SEND_SIZE_BYTES_CONFIG).intValue());
   }
 
   /**

@@ -50,7 +50,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, 20_000, Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
         .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, 1000, Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
         .define(EVENT_ENRICHMENT_CONFIG, Type.LIST, null, enrichmentValidator, Importance.LOW, EVENT_ENRICHMENT_DOC)
-        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, 2_000_000, Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC);
+        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, 4_000_000, Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC);
   }
 
   /**

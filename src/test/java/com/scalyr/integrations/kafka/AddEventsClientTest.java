@@ -368,9 +368,9 @@ public class AddEventsClientTest {
    */
   @Test
   public void testCompression() {
-    Stream<String> compressionTypes = Stream.of(CompressorFactory.DEFLATE);
+    Stream<String> compressionTypes = Stream.of(CompressorFactory.DEFLATE, CompressorFactory.ZSTD);
     compressionTypes.forEach(compressionType -> {
-      compressor = CompressorFactory.getCompressor("deflate", null);
+      compressor = CompressorFactory.getCompressor(compressionType, null);
       testSingleRequestWithCompression();
     });
   }
