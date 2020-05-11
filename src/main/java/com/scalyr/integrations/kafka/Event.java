@@ -1,5 +1,7 @@
 package com.scalyr.integrations.kafka;
 
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -20,10 +22,13 @@ public class Event {
   private String serverHost;
   private String logfile;
   private String parser;
+  // Enrichment attrs are the same for all events and can be promoted to log level attrs
+  private Map<String, String> enrichmentAttrs;
 
   // Event level fields
   private long timestamp;
   private String message;
+  private Map<String, Object> additionalAttrs;
 
   // Setters
   public Event setTopic(String topic) {
@@ -66,6 +71,24 @@ public class Event {
     return this;
   }
 
+  public Event addAdditionalAttr(String key, Object value) {
+    if (additionalAttrs == null) {
+      additionalAttrs = new HashMap<>();
+    }
+    this.additionalAttrs.put(key, value);
+    return this;
+  }
+
+  /**
+   * Enrichment attrs are additional key/value pairs that are part of the event attrs.
+   * Since these are always the same for all events, we do not make a copy of the Map to avoid duplication.
+   * The caller should not modify/re-use the Map.
+   */
+  public Event setEnrichmentAttrs(Map<String, String> enrichmentAttrs) {
+    this.enrichmentAttrs = enrichmentAttrs;
+    return this;
+  }
+
   // Getters
   public String getTopic() {
     return topic;
@@ -98,6 +121,10 @@ public class Event {
   public String getMessage() {
     return message;
   }
+
+  public Map<String, Object> getAdditionalAttrs() { return additionalAttrs; }
+
+  public Map<String, String> getEnrichmentAttrs() { return enrichmentAttrs; }
 
   /**
    * Equals only uses server level fields for log id mapping

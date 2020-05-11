@@ -12,10 +12,14 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
 
@@ -27,26 +31,33 @@ public class EventMapperTest {
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
+  private static final List<Map<String, String>> testEnrichmentAttrs =
+    Arrays.asList(null, TestUtils.makeMap("env", "test", "org", "Scalyr")); // Test without and with enrichment
   private static final AtomicInteger offset = new AtomicInteger();
 
   private final Supplier<Object> recordValue;
+  private final Map<String, String> enrichmentAttrs;
   private EventMapper eventMapper;
 
   /**
-   * Create test parameters for each SinkRecordValueCreator type.
+   * Create test parameters for each SinkRecordValueCreator type and testEnrichmentAttrs combination.
+   * Object[] = {Supplier<Object> recordValue, List<String> enrichmentAttr}
    */
   @Parameterized.Parameters
   public static Collection<Object[]> testParams() {
-    return TestUtils.singleRecordValueTestParams();
+    return TestUtils.singleRecordValueTestParams().stream()
+      .flatMap(recordValue -> testEnrichmentAttrs.stream().map(enrichmentAttrs -> new Object[] {recordValue[0], enrichmentAttrs}))
+      .collect(Collectors.toList());
   }
 
-  public EventMapperTest(Supplier<Object> recordValue) {
+  public EventMapperTest(Supplier<Object> recordValue, Map<String, String> enrichmentAttrs) {
     this.recordValue = recordValue;
+    this.enrichmentAttrs = enrichmentAttrs;
   }
 
   @Before
   public void setup() {
-    this.eventMapper = new EventMapper();
+    this.eventMapper = new EventMapper(enrichmentAttrs);
   }
 
   /**
@@ -67,7 +78,7 @@ public class EventMapperTest {
    * Test EventMapper with timestamp in SinkRecord
    */
   @Test
-  public void crateEventWithTimestampTest() {
+  public void createEventWithTimestampTest() {
     // With timestamp
     final long msSinceEpoch = 60 * 1000;  // 1 minute after epoch
     SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, recordValue.get(), offset.getAndIncrement(), msSinceEpoch, TimestampType.CREATE_TIME);
@@ -89,7 +100,7 @@ public class EventMapperTest {
   /**
    * Validate Scalyr event matches SinkRecord
    */
-  private static void validateEvent(Event event) {
+  private void validateEvent(Event event) {
     assertEquals(TestValues.MESSAGE_VALUE, event.getMessage());
     assertEquals(TestValues.LOGFILE_VALUE + "0", event.getLogfile());
     assertEquals(TestValues.PARSER_VALUE + "0", event.getParser());
@@ -97,5 +108,6 @@ public class EventMapperTest {
     assertEquals(topic, event.getTopic());
     assertEquals(partition, event.getPartition());
     assertEquals(offset.get() - 1, event.getOffset());
+    assertEquals(enrichmentAttrs, event.getEnrichmentAttrs());
   }
 }

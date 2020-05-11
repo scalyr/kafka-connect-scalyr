@@ -14,6 +14,7 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -70,9 +71,10 @@ public class ScalyrSinkTask extends SinkTask {
     this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG),
       sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(), addEventsTimeoutMs,
       sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG),
-      CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG), sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
+      CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG),
+        sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
       sleep);
-    this.eventMapper = new EventMapper();
+    this.eventMapper = new EventMapper(parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
   }
 
   /**
@@ -183,5 +185,21 @@ public class ScalyrSinkTask extends SinkTask {
     return addEventsResponse.isRetriable()
       ? new RetriableException(addEventsResponse.toString())
       : new ConnectException(addEventsResponse.toString());
+  }
+
+  /**
+   * Parse eventEnrichment config.
+   * Parses [key1=value1, key2=value2] into Map<String, String> of key/value pairs.
+   * @param eventEnrichment {@link ScalyrSinkConnectorConfig#EVENT_ENRICHMENT_CONFIG} value
+   * @return Parsed key/value pairs as Map
+   */
+  @VisibleForTesting Map<String, String> parseEnrichmentAttrs(List<String> eventEnrichment) {
+    if (eventEnrichment == null) {
+      return Collections.EMPTY_MAP;
+    }
+
+    return eventEnrichment.stream()
+      .map(pair -> pair.split("=", 2))
+      .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
   }
 }
