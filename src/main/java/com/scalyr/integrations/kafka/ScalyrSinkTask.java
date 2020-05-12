@@ -113,6 +113,7 @@ public class ScalyrSinkTask extends SinkTask {
         sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
       sleep);
     this.eventMapper = new EventMapper(parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
+    log.info("Started ScalyrSinkTask");
   }
 
   /**
@@ -129,6 +130,7 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @Override
   public void put(Collection<SinkRecord> records) {
+    log.debug("Putting {} records to Scalyr", records.size());
     if (records.isEmpty()) {
       return;
     }
@@ -172,6 +174,9 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> currentOffsets) {
+    log.debug("Flushing data to Scalyr with the following offsets: {}", currentOffsets);
+
+    // Send pending events in buffer
     if (eventBuffer.length() > 0) {
       sendEvents();
     }
@@ -218,6 +223,7 @@ public class ScalyrSinkTask extends SinkTask {
     if (addEventsClient != null) {
       addEventsClient.close();
     }
+    log.info("Stopped ScalyrSinkTask");
   }
 
   /**

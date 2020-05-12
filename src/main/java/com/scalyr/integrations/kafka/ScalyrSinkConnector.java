@@ -58,6 +58,7 @@ public class ScalyrSinkConnector extends SinkConnector {
     }
 
     this.configProps = Collections.unmodifiableMap(configProps);
+    log.info("Started ScalyrSinkConnector");
   }
 
   @Override public Class<? extends Task> taskClass() {
@@ -79,9 +80,10 @@ public class ScalyrSinkConnector extends SinkConnector {
 
   /**
    * Stop this connector.
+   * No actions needed.
    */
   @Override public void stop() {
-    //TODO: Do things that are necessary to stop your connector.  We may not need to do anything.
+    log.info("Stopped ScalyrSinkConnector");
   }
 
   /**
