@@ -20,7 +20,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class ScalyrSinkConnectorConfigTest {
 
-  private static final String TEST_SCALYR_SERVER = "https://test.scalyr.com";
+  private static final String TEST_SCALYR_SERVER = "https://upload.eu.scalyr.com";
   private static final String TEST_API_KEY = "abcdef123456";
   private static final String TEST_COMPRESSION_TYPE = "none";
   private static final String TEST_COMPRESSION_LEVEL = "0";
@@ -67,7 +67,7 @@ public class ScalyrSinkConnectorConfigTest {
       SCALYR_API_CONFIG, TEST_API_KEY);
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
-    assertEquals(DEFAULT_SCALYR_SERVER, connectorConfig.getString(SCALYR_SERVER_CONFIG));
+    assertEquals(PROD_SCALYR_SERVER, connectorConfig.getString(SCALYR_SERVER_CONFIG));
     assertEquals(TEST_API_KEY, connectorConfig.getPassword(SCALYR_API_CONFIG).value());
     assertEquals(DEFAULT_COMPRESSION_TYPE, connectorConfig.getString(COMPRESSION_TYPE_CONFIG));
     assertNull(connectorConfig.getInt(COMPRESSION_LEVEL_CONFIG));
@@ -116,6 +116,36 @@ public class ScalyrSinkConnectorConfigTest {
 
     config.put(EVENT_ENRICHMENT_CONFIG, "key=value,key2= value2");
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+  }
+
+  @Test
+  public void testInvalidConfigValues() {
+    Map<String, String> config = TestUtils.makeMap(
+      SCALYR_API_CONFIG, TEST_API_KEY);
+
+    config.put(SCALYR_SERVER_CONFIG, "http://www.scalyr.com");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(SCALYR_SERVER_CONFIG);
+
+    config.put(COMPRESSION_TYPE_CONFIG, "bz2");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(COMPRESSION_TYPE_CONFIG);
+
+    config.put(BATCH_SEND_SIZE_BYTES_CONFIG, "0");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(BATCH_SEND_SIZE_BYTES_CONFIG);
+
+    config.put(BATCH_SEND_WAIT_MS_CONFIG, "999");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(BATCH_SEND_WAIT_MS_CONFIG);
+
+    config.put(ADD_EVENTS_TIMEOUT_MS_CONFIG, "0");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(ADD_EVENTS_TIMEOUT_MS_CONFIG);
+
+    config.put(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, "0");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(ADD_EVENTS_RETRY_DELAY_MS_CONFIG);
   }
 
   /**

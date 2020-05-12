@@ -83,7 +83,6 @@ public class ScalyrSinkConnectorTest {
 
   private Map<String, String> makeConfig() {
     return TestUtils.makeMap(
-      ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, "app.scalyr.com",
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, "abc123");
   }
 }

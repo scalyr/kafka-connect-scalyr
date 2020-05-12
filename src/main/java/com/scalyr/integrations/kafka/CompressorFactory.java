@@ -3,11 +3,13 @@ package com.scalyr.integrations.kafka;
 import com.github.luben.zstd.ZstdInputStream;
 import com.github.luben.zstd.ZstdOutputStream;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.util.List;
 import java.util.zip.Deflater;
 import java.util.zip.DeflaterOutputStream;
 import java.util.zip.InflaterInputStream;
@@ -20,6 +22,8 @@ public class CompressorFactory {
   public static final String DEFLATE = "deflate";
   public static final String ZSTD = "zstd";
   public static final String NONE = "none";
+
+  public static final List<String> SUPPORTED_COMPRESSION_NAMES = ImmutableList.of(DEFLATE, ZSTD, NONE);
 
   /**
    * Simple factory method for {@link Compressor} implementation for the specified compressionType and compressionLevel.
