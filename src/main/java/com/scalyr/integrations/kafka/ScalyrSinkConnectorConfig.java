@@ -17,6 +17,10 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
 
   public static final String DEFAULT_SCALYR_SERVER = "https://app.scalyr.com";
   public static final String DEFAULT_COMPRESSION_TYPE = "deflate";
+  public static final int DEFAULT_ADD_EVENTS_TIMEOUT_MS = 20_000;
+  public static final int DEFAULT_ADD_EVENTS_RETRY_DELAY_MS = 1000;
+  public static final int DEFAULT_BATCH_SEND_SIZE_BYTES = 4_000_000;
+  public static final int DEFAULT_BATCH_SEND_WAIT_MS = 5000;
 
   public static final String SCALYR_SERVER_CONFIG = "scalyr_server";
   private static final String SCALYR_SERVER_DOC = "Scalyr server URL to send logs to.  If not specified, 'https://app.scalyr.com' is used";
@@ -35,7 +39,10 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
     + "All events uploaded by this connector will have these attributes.  Values should not have any spaces.";
   public static final String BATCH_SEND_SIZE_BYTES_CONFIG = "batch_send_size_bytes";
   private static final String BATCH_SEND_SIZE_BYTES_DOC = "Batch size that must be reached before events are sent.  This is to buffer events into larger batches for increased throughput.";
-
+  public static final String BATCH_SEND_WAIT_MS_CONFIG = "batch_send_wait_ms";
+  private static final String BATCH_SEND_WAIT_MS_DOC = "Maximum time to wait in millisecs between batch sends."
+    + "  This ensures events are sent to Scalyr in a timely manner on systems under light load where "
+    + BATCH_SEND_SIZE_BYTES_CONFIG + " may not be reached for longer periods of time.";
 
   public ScalyrSinkConnectorConfig(Map<String, String> parsedConfig) {
     super(configDef(), parsedConfig);
@@ -47,10 +54,11 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         .define(SCALYR_API_CONFIG, Type.PASSWORD, Importance.HIGH, SCALYR_API_DOC)
         .define(COMPRESSION_TYPE_CONFIG,  Type.STRING, DEFAULT_COMPRESSION_TYPE, Importance.LOW, COMPRESSION_TYPE_DOC)
         .define(COMPRESSION_LEVEL_CONFIG, Type.INT, null, Importance.LOW, COMPRESSION_LEVEL_DOC)
-        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, 20_000, Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
-        .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, 1000, Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
+        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_TIMEOUT_MS, Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
+        .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_RETRY_DELAY_MS, Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
         .define(EVENT_ENRICHMENT_CONFIG, Type.LIST, null, enrichmentValidator, Importance.LOW, EVENT_ENRICHMENT_DOC)
-        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, 4_000_000, Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC);
+        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, DEFAULT_BATCH_SEND_SIZE_BYTES, Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC)
+        .define(BATCH_SEND_WAIT_MS_CONFIG, Type.INT, DEFAULT_BATCH_SEND_WAIT_MS, Importance.LOW, BATCH_SEND_WAIT_MS_DOC);
   }
 
   /**

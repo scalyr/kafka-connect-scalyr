@@ -182,13 +182,13 @@ public class ScalyrSinkTaskTest {
   /**
    * Verify event buffering batchSendSize.
    * 1) Verify addEvents is not called when batchSendSize is not met.
-   * 2) Verify addEvents is called once batchSendSize is met without batchSendTimeout met.
+   * 2) Verify addEvents is called once batchSendSize is met without batchSendWaitMs met.
    */
   @Test
   public void testPutEventBufferingSendSize() throws Exception {
     final int numRecords = 100;
     final int batchSendSize = TestValues.MESSAGE_VALUE.length() * (numRecords + 1);
-    ScalyrUtil.setCustomTimeNs(0);  // Set custom time and never advance so batchSendTimeout will not be met
+    ScalyrUtil.setCustomTimeNs(0);  // Set custom time and never advance so batchSendWaitMs will not be met
 
     MockWebServer server = new MockWebServer();
 
@@ -217,19 +217,19 @@ public class ScalyrSinkTaskTest {
   }
 
   /**
-   * Verify event buffering batchSendTimeout.
-   * 1) Verify addEvents is not called when batchSendTimeout and batchSendSize is not met.
-   * 2) Verify addEvents is called once batchSendTimeout is met without batchSendSize met.
+   * Verify event buffering batchSendWaitMs.
+   * 1) Verify addEvents is not called when batchSendWaitMs and batchSendSize is not met.
+   * 2) Verify addEvents is called once batchSendWaitMs is met without batchSendSize met.
    */
   @Test
-  public void testPutEventBufferingSendTimeout() throws Exception {
+  public void testPutEventBufferingBatchSendWait() throws Exception {
     final int numRecords = 10;
-    final int sendBatchSize = 1_000_000; // 1 MB
+    final int batchSendSize = 1_000_000; // 1 MB
     ScalyrUtil.setCustomTimeNs(0);
 
     MockWebServer server = new MockWebServer();
 
-    startTask(server, sendBatchSize);
+    startTask(server, batchSendSize);
 
     // Test multiple rounds of batch/send
     for (int i = 0; i < 2; i++) {
@@ -249,8 +249,8 @@ public class ScalyrSinkTaskTest {
       scalyrSinkTask.waitForRequestsToComplete();
       assertEquals(i, server.getRequestCount());
 
-      // batch 3 - timeout expired
-      ScalyrUtil.advanceCustomTimeMs(6000);
+      // batch 3 - batchSendWaitMs exceeded
+      ScalyrUtil.advanceCustomTimeMs(ScalyrSinkConnectorConfig.DEFAULT_BATCH_SEND_WAIT_MS + 1000);
       records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
       scalyrSinkTask.put(records);
       allRecords.addAll(records);

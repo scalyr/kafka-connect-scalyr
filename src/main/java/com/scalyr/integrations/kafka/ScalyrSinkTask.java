@@ -51,9 +51,9 @@ public class ScalyrSinkTask extends SinkTask {
 
   /**
    * Ensures event batch is not queued for too long.
-   * Batch is sent once batchSendTimeoutMs has been reached even though batchSendSizeBytes is not reached yet.
+   * Batch is sent once batchSendWaitMs is reached even though batchSendSizeBytes is not reached yet.
    */
-  private final int batchSendTimeoutMs = 5000;
+  private int batchSendWaitMs;
 
   private long lastBatchSendTimeMs;
 
@@ -87,6 +87,8 @@ public class ScalyrSinkTask extends SinkTask {
     ScalyrSinkConnectorConfig sinkConfig = new ScalyrSinkConnectorConfig(configProps);
     this.addEventsTimeoutMs = sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_TIMEOUT_MS_CONFIG);
     this.batchSendSizeBytes = sinkConfig.getInt(ScalyrSinkConnectorConfig.BATCH_SEND_SIZE_BYTES_CONFIG);
+    this.batchSendWaitMs = sinkConfig.getInt(ScalyrSinkConnectorConfig.BATCH_SEND_WAIT_MS_CONFIG);
+    this.lastBatchSendTimeMs = ScalyrUtil.currentTimeMillis();
     this.addEventsClient = new AddEventsClient(sinkConfig.getString(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG),
       sinkConfig.getPassword(ScalyrSinkConnectorConfig.SCALYR_API_CONFIG).value(), addEventsTimeoutMs,
       sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG),
@@ -94,7 +96,6 @@ public class ScalyrSinkTask extends SinkTask {
         sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
       sleep);
     this.eventMapper = new EventMapper(parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
-    this.lastBatchSendTimeMs = ScalyrUtil.currentTimeMillis();
   }
 
   /**
@@ -126,7 +127,7 @@ public class ScalyrSinkTask extends SinkTask {
 
     eventBuffer.addEvents(events);
     if (eventBuffer.estimatedSerializedBytes() >= batchSendSizeBytes
-       || (ScalyrUtil.currentTimeMillis() - lastBatchSendTimeMs) >= batchSendTimeoutMs) {
+       || (ScalyrUtil.currentTimeMillis() - lastBatchSendTimeMs) >= batchSendWaitMs) {
       sendEvents();
     }
   }
