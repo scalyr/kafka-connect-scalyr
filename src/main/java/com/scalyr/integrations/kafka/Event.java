@@ -127,14 +127,14 @@ public class Event {
   public Map<String, String> getEnrichmentAttrs() { return enrichmentAttrs; }
 
   /**
-   * @return Size in bytes of Event message or attributes if no message.
+   * @return Size in bytes of Event message and attributes.
    */
-  public int size() {
+  public int estimatedSerializedBytes() {
     int size = getMessage() == null ? 0 : getMessage().length();
 
-    // No message - use attributes size
-    if (size == 0 && getAdditionalAttrs() != null) {
-      size += getAdditionalAttrs().values().stream().mapToInt(o -> o.toString().length()).sum();
+    if (getAdditionalAttrs() != null) {
+      size += getAdditionalAttrs().entrySet().stream()
+        .mapToInt(entry -> entry.getKey().length() + entry.getValue().toString().length()).sum();
     }
     return size;
   }

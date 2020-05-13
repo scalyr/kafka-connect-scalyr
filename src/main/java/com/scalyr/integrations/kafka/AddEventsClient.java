@@ -56,6 +56,7 @@ public class AddEventsClient implements AutoCloseable {
   private final long addEventsTimeoutMs;
   private final int initialBackoffDelayMs;
   private final Compressor compressor;
+  /** Re-use outputStream to avoid reallocating and growing the ByteArrayOutputStream byte[] for every `log` call */
   private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
   /**

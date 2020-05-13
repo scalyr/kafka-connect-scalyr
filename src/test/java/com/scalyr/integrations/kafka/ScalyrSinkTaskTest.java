@@ -1,6 +1,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import okhttp3.mockwebserver.MockResponse;
@@ -179,14 +180,52 @@ public class ScalyrSinkTaskTest {
   }
 
   /**
-   * Verify event buffering.
-   * 1) Verify addEvents is not called when sendBatchSize is not met.
-   * 2) Verify addEvents is called once sendBatchSize is met.
+   * Verify event buffering batchSendSize.
+   * 1) Verify addEvents is not called when batchSendSize is not met.
+   * 2) Verify addEvents is called once batchSendSize is met without batchSendTimeout met.
    */
   @Test
-  public void testPutEventBuffering() throws Exception {
+  public void testPutEventBufferingSendSize() throws Exception {
     final int numRecords = 100;
-    final int sendBatchSize = TestValues.MESSAGE_VALUE.length() * (numRecords + 1);
+    final int batchSendSize = TestValues.MESSAGE_VALUE.length() * (numRecords + 1);
+    ScalyrUtil.setCustomTimeNs(0);  // Set custom time and never advance so batchSendTimeout will not be met
+
+    MockWebServer server = new MockWebServer();
+
+    startTask(server, batchSendSize);
+
+    // Test multiple rounds of batch/send
+    for (int i = 0; i < 2; i++) {
+      server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+
+      // batch 1 - buffered
+      List<SinkRecord> records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+      List<SinkRecord> allRecords = new ArrayList<>(records);
+      scalyrSinkTask.put(records);
+      scalyrSinkTask.waitForRequestsToComplete();
+      assertEquals(i, server.getRequestCount());
+
+      // batch 2 - batch 1 & 2 sent together
+      records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+      scalyrSinkTask.put(records);
+      allRecords.addAll(records);
+      scalyrSinkTask.waitForRequestsToComplete();
+      assertEquals(i + 1, server.getRequestCount());
+
+      verifyRecords(server, allRecords);
+    }
+  }
+
+  /**
+   * Verify event buffering batchSendTimeout.
+   * 1) Verify addEvents is not called when batchSendTimeout and batchSendSize is not met.
+   * 2) Verify addEvents is called once batchSendTimeout is met without batchSendSize met.
+   */
+  @Test
+  public void testPutEventBufferingSendTimeout() throws Exception {
+    final int numRecords = 10;
+    final int sendBatchSize = 1_000_000; // 1 MB
+    ScalyrUtil.setCustomTimeNs(0);
 
     MockWebServer server = new MockWebServer();
 
@@ -203,7 +242,15 @@ public class ScalyrSinkTaskTest {
       scalyrSinkTask.waitForRequestsToComplete();
       assertEquals(i, server.getRequestCount());
 
-      // batch 2 - batch 1 & 2 sent together
+      // batch 2 - buffered
+      records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+      scalyrSinkTask.put(records);
+      allRecords.addAll(records);
+      scalyrSinkTask.waitForRequestsToComplete();
+      assertEquals(i, server.getRequestCount());
+
+      // batch 3 - timeout expired
+      ScalyrUtil.advanceCustomTimeMs(6000);
       records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
       scalyrSinkTask.put(records);
       allRecords.addAll(records);

@@ -1,6 +1,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsResponse;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -43,7 +44,18 @@ public class ScalyrSinkTask extends SinkTask {
   private volatile ConnectException lastError;
   private final EventBuffer eventBuffer = new EventBuffer();
 
+  /**
+   * Events are queued until event estimated serialized bytes reaches batchSendSizeBytes.
+   */
   private int batchSendSizeBytes;
+
+  /**
+   * Ensures event batch is not queued for too long.
+   * Batch is sent once batchSendTimeoutMs has been reached even though batchSendSizeBytes is not reached yet.
+   */
+  private final int batchSendTimeoutMs = 5000;
+
+  private long lastBatchSendTimeMs;
 
   /**
    * Default constructor called by Kafka Connect.
@@ -82,6 +94,7 @@ public class ScalyrSinkTask extends SinkTask {
         sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
       sleep);
     this.eventMapper = new EventMapper(parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
+    this.lastBatchSendTimeMs = ScalyrUtil.currentTimeMillis();
   }
 
   /**
@@ -112,7 +125,8 @@ public class ScalyrSinkTask extends SinkTask {
       .map(eventMapper::createEvent);
 
     eventBuffer.addEvents(events);
-    if (eventBuffer.msgBytes() >= batchSendSizeBytes) {
+    if (eventBuffer.estimatedSerializedBytes() >= batchSendSizeBytes
+       || (ScalyrUtil.currentTimeMillis() - lastBatchSendTimeMs) >= batchSendTimeoutMs) {
       sendEvents();
     }
   }
@@ -126,6 +140,7 @@ public class ScalyrSinkTask extends SinkTask {
     pendingAddEvents = addEventsClient.log(eventBuffer.getEvents(), pendingAddEvents).whenComplete(this::processResponse);
     pendingAddEvents.thenRun(perfStats::close);
     eventBuffer.clear();
+    lastBatchSendTimeMs = ScalyrUtil.currentTimeMillis();
   }
 
   /**
@@ -239,7 +254,7 @@ public class ScalyrSinkTask extends SinkTask {
     public void addEvents(Stream<Event> events) {
       events.forEach(event -> {
         eventBuffer.add(event);
-        msgSize.addAndGet(event.size());
+        msgSize.addAndGet(event.estimatedSerializedBytes());
       });
     }
 
@@ -251,9 +266,9 @@ public class ScalyrSinkTask extends SinkTask {
     }
 
     /**
-     * @return Sum of event messages size
+     * @return Estimated serialized bytes of event messages and attributes
      */
-    public int msgBytes() {
+    public int estimatedSerializedBytes() {
       return msgSize.get();
     }
 
@@ -280,7 +295,7 @@ public class ScalyrSinkTask extends SinkTask {
     private final Logger log;
     private final long startTime = System.currentTimeMillis();
     private int numRecords;
-    private int msgBytes;
+    private int estimatedBytes;
 
     public PerfStats(Logger log) {
       this.log = log;
@@ -289,7 +304,7 @@ public class ScalyrSinkTask extends SinkTask {
     public void recordEvents(EventBuffer eventBuffer) {
       if (log.isDebugEnabled()) {
         numRecords = eventBuffer.length();
-        msgBytes = eventBuffer.msgBytes();
+        estimatedBytes = eventBuffer.estimatedSerializedBytes();
       }
     }
 
@@ -300,8 +315,8 @@ public class ScalyrSinkTask extends SinkTask {
     public void close() {
       if (log.isDebugEnabled()) {
         long timeMs = System.currentTimeMillis() - startTime;
-        log.debug("Processed numRecords {}, message bytes {} in {} millisecs, {} MB/sec",
-          numRecords, msgBytes, timeMs, (timeMs == 0 ? 0 : (msgBytes / (double)(timeMs) / 1000)));
+        log.debug("Processed numRecords {}, estimated serialized bytes {} in {} millisecs, {} MB/sec",
+          numRecords, estimatedBytes, timeMs, (timeMs == 0 ? 0 : (estimatedBytes / (double)(timeMs) / 1000)));
       }
     }
   }
