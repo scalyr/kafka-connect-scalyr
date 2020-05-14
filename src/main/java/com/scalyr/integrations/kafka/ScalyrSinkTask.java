@@ -45,7 +45,8 @@ public class ScalyrSinkTask extends SinkTask {
   private final EventBuffer eventBuffer = new EventBuffer();
 
   /**
-   * Events are queued until event estimated serialized bytes reaches batchSendSizeBytes.
+   * Events are queued until event estimated serialized bytes reaches batchSendSizeBytes
+   * or until batchSendWaitMs is reached.
    */
   private int batchSendSizeBytes;
 
