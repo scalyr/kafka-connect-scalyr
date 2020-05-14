@@ -73,9 +73,9 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         .define(COMPRESSION_TYPE_CONFIG,  Type.STRING, DEFAULT_COMPRESSION_TYPE,
           ConfigDef.ValidString.in(CompressorFactory.SUPPORTED_COMPRESSION_NAMES.toArray(new String[0])), Importance.LOW, COMPRESSION_TYPE_DOC)
         .define(COMPRESSION_LEVEL_CONFIG, Type.INT, null, Importance.LOW, COMPRESSION_LEVEL_DOC)
-        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_TIMEOUT_MS, ConfigDef.Range.atLeast(1), Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
-        .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_RETRY_DELAY_MS, ConfigDef.Range.atLeast(1), Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
-        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, DEFAULT_BATCH_SEND_SIZE_BYTES, ConfigDef.Range.between(1_000_000, 6_000_000), Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC)
+        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_TIMEOUT_MS, ConfigDef.Range.atLeast(2000), Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
+        .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_RETRY_DELAY_MS, ConfigDef.Range.atLeast(100), Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
+        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, DEFAULT_BATCH_SEND_SIZE_BYTES, ConfigDef.Range.between(500_000, 6_000_000), Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC)
         .define(BATCH_SEND_WAIT_MS_CONFIG, Type.INT, DEFAULT_BATCH_SEND_WAIT_MS, ConfigDef.Range.atLeast(1000), Importance.LOW, BATCH_SEND_WAIT_MS_DOC);
   }
 

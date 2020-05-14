@@ -147,7 +147,11 @@ public class ScalyrSinkConnectorConfigTest {
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(COMPRESSION_TYPE_CONFIG);
 
-    config.put(BATCH_SEND_SIZE_BYTES_CONFIG, "0");
+    config.put(BATCH_SEND_SIZE_BYTES_CONFIG, "100");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(BATCH_SEND_SIZE_BYTES_CONFIG);
+
+    config.put(BATCH_SEND_SIZE_BYTES_CONFIG, "6000001");
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(BATCH_SEND_SIZE_BYTES_CONFIG);
 
@@ -155,11 +159,11 @@ public class ScalyrSinkConnectorConfigTest {
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(BATCH_SEND_WAIT_MS_CONFIG);
 
-    config.put(ADD_EVENTS_TIMEOUT_MS_CONFIG, "0");
+    config.put(ADD_EVENTS_TIMEOUT_MS_CONFIG, "1000");
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(ADD_EVENTS_TIMEOUT_MS_CONFIG);
 
-    config.put(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, "0");
+    config.put(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, "1");
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(ADD_EVENTS_RETRY_DELAY_MS_CONFIG);
   }

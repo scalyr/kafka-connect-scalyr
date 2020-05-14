@@ -108,7 +108,7 @@ public class ScalyrSinkTaskTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
 
     // put SinkRecords
-    List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, TestValues.MIN_BATCH_EVENTS, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
     scalyrSinkTask.waitForRequestsToComplete();
 
@@ -172,7 +172,7 @@ public class ScalyrSinkTaskTest {
 
     // Error first request
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(TestValues.ADD_EVENTS_RESPONSE_SERVER_BUSY));
-    List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, TestValues.MIN_BATCH_EVENTS, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
     scalyrSinkTask.waitForRequestsToComplete();
     assertEquals(requestCount += TestValues.EXPECTED_NUM_RETRIES, server.getRequestCount());
@@ -202,13 +202,12 @@ public class ScalyrSinkTaskTest {
    */
   @Test
   public void testPutEventBufferingSendSize() throws Exception {
-    final int numRecords = 100;
-    final int batchSendSize = TestValues.MESSAGE_VALUE.length() * (numRecords + 1);
+    final int numRecords = (TestValues.MIN_BATCH_EVENTS / 2) + 1;
     ScalyrUtil.setCustomTimeNs(0);  // Set custom time and never advance so batchSendWaitMs will not be met
 
     MockWebServer server = new MockWebServer();
 
-    startTask(server, batchSendSize);
+    startTask(server);
 
     // Test multiple rounds of batch/send
     for (int i = 0; i < 2; i++) {
@@ -240,12 +239,11 @@ public class ScalyrSinkTaskTest {
   @Test
   public void testPutEventBufferingBatchSendWait() throws Exception {
     final int numRecords = 10;
-    final int batchSendSize = 1_000_000; // 1 MB
     ScalyrUtil.setCustomTimeNs(0);
 
     MockWebServer server = new MockWebServer();
 
-    startTask(server, batchSendSize);
+    startTask(server);
 
     // Test multiple rounds of batch/send
     for (int i = 0; i < 2; i++) {
@@ -283,12 +281,11 @@ public class ScalyrSinkTaskTest {
   @Test
   public void testFlushSendsEventsInBuffer() throws Exception {
     final int numRecords = 100;
-    final int sendBatchSize = TestValues.MESSAGE_VALUE.length() * (numRecords + 1);
 
     MockWebServer server = new MockWebServer();
     server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
 
-    startTask(server, sendBatchSize);
+    startTask(server);
 
     // batch 1 - buffered
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
@@ -345,22 +342,14 @@ public class ScalyrSinkTaskTest {
   }
 
   /**
-   * Start SinkTask with mock server addEvents URL and batchSendSizeBytes
-   */
-  private void startTask(MockWebServer server, int batchSendSizeBytes) {
-    Map<String, String> configMap = createConfig();
-    configMap.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
-    configMap.put(ScalyrSinkConnectorConfig.BATCH_SEND_SIZE_BYTES_CONFIG, String.valueOf(batchSendSizeBytes));
-    scalyrSinkTask.start(configMap);
-  }
-
-  /**
-   * Convenience method for {@link #startTask(MockWebServer, int)} that uses default TestValues.BATCH_SEND_SIZE_BYTES
+   * Start task using MockWebServer URL for the Scalyr server
    */
   private void startTask(MockWebServer server) {
-    startTask(server, TestValues.BATCH_SEND_SIZE_BYTES);
+    Map<String, String> configMap = createConfig();
+    configMap.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
+    configMap.put(ScalyrSinkConnectorConfig.BATCH_SEND_SIZE_BYTES_CONFIG, String.valueOf(TestValues.MIN_BATCH_SEND_SIZE_BYTES));
+    scalyrSinkTask.start(configMap);
   }
-
 
   private Map<String, String> createConfig() {
     return TestUtils.makeMap(
