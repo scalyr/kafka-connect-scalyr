@@ -21,7 +21,7 @@ public abstract class TestValues {
   public static final long EXPECTED_SLEEP_TIME_MS = 15_000; // Expected sleep time with ADD_EVENTS_TIMEOUT_MS and ADD_EVENTS_RETRY_DELAY_MS
   public static final String ENRICHMENT_VALUE = "env=test,org=Scalyr";
   public static final Map<String, String> ENRICHMENT_VALUE_MAP = TestUtils.makeMap("env", "test", "org", "Scalyr");
-
+  public static final int BATCH_SEND_SIZE_BYTES = MESSAGE_VALUE.length();
   public static final String ADD_EVENTS_RESPONSE_SUCCESS;
   public static final String ADD_EVENTS_RESPONSE_SERVER_BUSY;
   public static final String ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM;

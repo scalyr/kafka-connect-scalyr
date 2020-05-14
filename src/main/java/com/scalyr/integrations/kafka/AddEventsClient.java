@@ -56,6 +56,8 @@ public class AddEventsClient implements AutoCloseable {
   private final long addEventsTimeoutMs;
   private final int initialBackoffDelayMs;
   private final Compressor compressor;
+  /** Re-use outputStream to avoid reallocating and growing the ByteArrayOutputStream byte[] for every `log` call */
+  private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
   /**
    * Performs sleep for specified time period is ms.  In tests, this can be a Mockable sleep.
@@ -118,7 +120,7 @@ public class AddEventsClient implements AutoCloseable {
         .setToken(apiKey)
         .setEvents(events);
 
-      ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+      outputStream.reset();
       addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
 
       // Wait for dependent addEvents call to complete and return dependent failed future if failed
@@ -127,7 +129,8 @@ public class AddEventsClient implements AutoCloseable {
         return dependentAddEvents;
       }
 
-      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(outputStream.toByteArray(), startTimeMs), senderThread);
+      final byte[] addEventsPayload = outputStream.toByteArray();
+      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, startTimeMs), senderThread);
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
       CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture();

@@ -1,8 +1,11 @@
 package com.scalyr.integrations.kafka;
 
+import com.github.luben.zstd.ZstdInputStream;
+import com.github.luben.zstd.ZstdOutputStream;
 import com.google.common.base.Preconditions;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.zip.Deflater;
@@ -15,6 +18,7 @@ import java.util.zip.InflaterInputStream;
  */
 public class CompressorFactory {
   public static final String DEFLATE = "deflate";
+  public static final String ZSTD = "zstd";
   public static final String NONE = "none";
 
   /**
@@ -24,6 +28,8 @@ public class CompressorFactory {
   public static Compressor getCompressor(String commpressionType, Integer compressionLevel) {
     if (DEFLATE.equalsIgnoreCase(commpressionType)) {
       return new DeflateCompressor(compressionLevel);
+    } else if (ZSTD.equalsIgnoreCase(commpressionType)) {
+      return new ZstdCompressor(compressionLevel);
     } else if (NONE.equalsIgnoreCase(commpressionType)) {
       return new NoCompression();
     }
@@ -59,6 +65,46 @@ public class CompressorFactory {
     @Override
     public String getContentEncoding() {
       return "deflate";
+    }
+  }
+
+  /**
+   * Zstandard compression
+   */
+  private static class ZstdCompressor implements Compressor {
+    private final int compressionLevel;
+
+    private static final int minCompressionLevel = 0;
+    private static final int maxCompressionLevel = 22;
+    private static final int defaultCompressionLevel = 0; // 0 means default, which is controlled by ZSTD_CLEVEL_DEFAULT
+
+    public ZstdCompressor(@Nullable Integer nullableCompressionLevel) {
+      int compressionLevel = nullableCompressionLevel == null ? defaultCompressionLevel : nullableCompressionLevel.intValue();
+      Preconditions.checkArgument(compressionLevel >= minCompressionLevel && compressionLevel <= maxCompressionLevel, "Invalid compression level");
+      this.compressionLevel = compressionLevel;
+    }
+
+    @Override
+    public OutputStream newStreamCompressor(OutputStream baseOutputStream) {
+      try {
+        return new ZstdOutputStream(baseOutputStream, compressionLevel);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    @Override
+    public InputStream newStreamDecompressor(InputStream baseInputStream) {
+      try {
+        return new ZstdInputStream(baseInputStream);
+      } catch (IOException e) {
+        throw new RuntimeException(e);
+      }
+    }
+
+    @Override
+    public String getContentEncoding() {
+      return "zstd";
     }
   }
 

@@ -1,6 +1,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import okhttp3.mockwebserver.MockResponse;
@@ -14,6 +15,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -83,21 +85,28 @@ public class ScalyrSinkTaskTest {
     putAndVerifyRecords(server);
   }
 
-  private void startTask(MockWebServer server) {
-    Map<String, String> configMap = createConfig();
-    configMap.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
-    scalyrSinkTask.start(configMap);
-  }
-
+  /**
+   * Create test SinkRecords and verify sent via addEvents API to the MockWebServer
+   */
   private void putAndVerifyRecords(MockWebServer server) throws InterruptedException, java.io.IOException {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
 
     // put SinkRecords
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, 100, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
+    scalyrSinkTask.waitForRequestsToComplete();
 
-    // Verify sink records are sent to addEvents API
+    verifyRecords(server, records);
+  }
+
+  /**
+   * Verify sink records are sent to addEvents API
+   * @param server MockWebServer addEvents request is sent to
+   * @param records SinkRecords sent
+   */
+  private void verifyRecords(MockWebServer server, List<SinkRecord> records) throws InterruptedException, java.io.IOException {
     EventMapper eventMapper = new EventMapper(scalyrSinkTask.parseEnrichmentAttrs(new ScalyrSinkConnectorConfig(createConfig()).getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
+
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
@@ -170,6 +179,113 @@ public class ScalyrSinkTaskTest {
     assertEquals(++requestCount, server.getRequestCount());
   }
 
+  /**
+   * Verify event buffering batchSendSize.
+   * 1) Verify addEvents is not called when batchSendSize is not met.
+   * 2) Verify addEvents is called once batchSendSize is met without batchSendWaitMs met.
+   */
+  @Test
+  public void testPutEventBufferingSendSize() throws Exception {
+    final int numRecords = 100;
+    final int batchSendSize = TestValues.MESSAGE_VALUE.length() * (numRecords + 1);
+    ScalyrUtil.setCustomTimeNs(0);  // Set custom time and never advance so batchSendWaitMs will not be met
+
+    MockWebServer server = new MockWebServer();
+
+    startTask(server, batchSendSize);
+
+    // Test multiple rounds of batch/send
+    for (int i = 0; i < 2; i++) {
+      server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+
+      // batch 1 - buffered
+      List<SinkRecord> records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+      List<SinkRecord> allRecords = new ArrayList<>(records);
+      scalyrSinkTask.put(records);
+      scalyrSinkTask.waitForRequestsToComplete();
+      assertEquals(i, server.getRequestCount());
+
+      // batch 2 - batch 1 & 2 sent together
+      records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+      scalyrSinkTask.put(records);
+      allRecords.addAll(records);
+      scalyrSinkTask.waitForRequestsToComplete();
+      assertEquals(i + 1, server.getRequestCount());
+
+      verifyRecords(server, allRecords);
+    }
+  }
+
+  /**
+   * Verify event buffering batchSendWaitMs.
+   * 1) Verify addEvents is not called when batchSendWaitMs and batchSendSize is not met.
+   * 2) Verify addEvents is called once batchSendWaitMs is met without batchSendSize met.
+   */
+  @Test
+  public void testPutEventBufferingBatchSendWait() throws Exception {
+    final int numRecords = 10;
+    final int batchSendSize = 1_000_000; // 1 MB
+    ScalyrUtil.setCustomTimeNs(0);
+
+    MockWebServer server = new MockWebServer();
+
+    startTask(server, batchSendSize);
+
+    // Test multiple rounds of batch/send
+    for (int i = 0; i < 2; i++) {
+      server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+
+      // batch 1 - buffered
+      List<SinkRecord> records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+      List<SinkRecord> allRecords = new ArrayList<>(records);
+      scalyrSinkTask.put(records);
+      scalyrSinkTask.waitForRequestsToComplete();
+      assertEquals(i, server.getRequestCount());
+
+      // batch 2 - buffered
+      records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+      scalyrSinkTask.put(records);
+      allRecords.addAll(records);
+      scalyrSinkTask.waitForRequestsToComplete();
+      assertEquals(i, server.getRequestCount());
+
+      // batch 3 - batchSendWaitMs exceeded
+      ScalyrUtil.advanceCustomTimeMs(ScalyrSinkConnectorConfig.DEFAULT_BATCH_SEND_WAIT_MS + 1000);
+      records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+      scalyrSinkTask.put(records);
+      allRecords.addAll(records);
+      scalyrSinkTask.waitForRequestsToComplete();
+      assertEquals(i + 1, server.getRequestCount());
+
+      verifyRecords(server, allRecords);
+    }
+  }
+
+  /**
+   * Verify flush sends events in buffer
+   */
+  @Test
+  public void testFlushSendsEventsInBuffer() throws Exception {
+    final int numRecords = 100;
+    final int sendBatchSize = TestValues.MESSAGE_VALUE.length() * (numRecords + 1);
+
+    MockWebServer server = new MockWebServer();
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+
+    startTask(server, sendBatchSize);
+
+    // batch 1 - buffered
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
+    scalyrSinkTask.put(records);
+    scalyrSinkTask.waitForRequestsToComplete();
+    assertEquals(0, server.getRequestCount());
+
+    // flush sends events in buffer
+    scalyrSinkTask.flush(new HashMap<>());
+    assertEquals(1, server.getRequestCount());
+
+    verifyRecords(server, records);
+  }
 
   /**
    * Verify ConnectException is thrown when server return client bad param.
@@ -211,6 +327,24 @@ public class ScalyrSinkTaskTest {
 
     scalyrSinkTask.stop();
   }
+
+  /**
+   * Start SinkTask with mock server addEvents URL and batchSendSizeBytes
+   */
+  private void startTask(MockWebServer server, int batchSendSizeBytes) {
+    Map<String, String> configMap = createConfig();
+    configMap.put(ScalyrSinkConnectorConfig.SCALYR_SERVER_CONFIG, server.url("").toString());
+    configMap.put(ScalyrSinkConnectorConfig.BATCH_SEND_SIZE_BYTES_CONFIG, String.valueOf(batchSendSizeBytes));
+    scalyrSinkTask.start(configMap);
+  }
+
+  /**
+   * Convenience method for {@link #startTask(MockWebServer, int)} that uses default TestValues.BATCH_SEND_SIZE_BYTES
+   */
+  private void startTask(MockWebServer server) {
+    startTask(server, TestValues.BATCH_SEND_SIZE_BYTES);
+  }
+
 
   private Map<String, String> createConfig() {
     return TestUtils.makeMap(

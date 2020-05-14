@@ -127,6 +127,19 @@ public class Event {
   public Map<String, String> getEnrichmentAttrs() { return enrichmentAttrs; }
 
   /**
+   * @return Size in bytes of Event message and attributes.
+   */
+  public int estimatedSerializedBytes() {
+    int size = getMessage() == null ? 0 : getMessage().length();
+
+    if (getAdditionalAttrs() != null) {
+      size += getAdditionalAttrs().entrySet().stream()
+        .mapToInt(entry -> entry.getKey().length() + entry.getValue().toString().length()).sum();
+    }
+    return size;
+  }
+
+  /**
    * Equals only uses server level fields for log id mapping
    */
   @Override
