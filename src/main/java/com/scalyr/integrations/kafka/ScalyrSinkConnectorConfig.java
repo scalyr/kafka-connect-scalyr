@@ -1,3 +1,19 @@
+/*
+ * Copyright 2020 Scalyr Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *      http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 package com.scalyr.integrations.kafka;
 
 import org.apache.kafka.common.config.AbstractConfig;
@@ -15,15 +31,16 @@ import java.util.Map;
  */
 public class ScalyrSinkConnectorConfig extends AbstractConfig {
 
-  public static final String DEFAULT_SCALYR_SERVER = "https://app.scalyr.com";
+  public static final String PROD_SCALYR_SERVER = "https://app.scalyr.com";
+  public static final String EU_SCALYR_SERVER = "https://upload.eu.scalyr.com";
   public static final String DEFAULT_COMPRESSION_TYPE = "deflate";
   public static final int DEFAULT_ADD_EVENTS_TIMEOUT_MS = 20_000;
-  public static final int DEFAULT_ADD_EVENTS_RETRY_DELAY_MS = 1000;
+  public static final int DEFAULT_ADD_EVENTS_RETRY_DELAY_MS = 500;
   public static final int DEFAULT_BATCH_SEND_SIZE_BYTES = 4_000_000;
   public static final int DEFAULT_BATCH_SEND_WAIT_MS = 5000;
 
   public static final String SCALYR_SERVER_CONFIG = "scalyr_server";
-  private static final String SCALYR_SERVER_DOC = "Scalyr server URL to send logs to.  If not specified, 'https://app.scalyr.com' is used";
+  private static final String SCALYR_SERVER_DOC = "Scalyr server URL to send logs to.  If not specified, '" + PROD_SCALYR_SERVER + "' is used";
   public static final String SCALYR_API_CONFIG = "api_key";
   private static final String SCALYR_API_DOC = "'Write Logs' api key for your account. These are available at https://www.scalyr.com/keys";
   public static final String COMPRESSION_TYPE_CONFIG = "compression_type";
@@ -50,16 +67,28 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
 
   public static ConfigDef configDef() {
     return new ConfigDef()
-        .define(SCALYR_SERVER_CONFIG, Type.STRING, DEFAULT_SCALYR_SERVER, Importance.HIGH, SCALYR_SERVER_DOC)
+        .define(SCALYR_SERVER_CONFIG, Type.STRING, PROD_SCALYR_SERVER, scalyrServerValidator, Importance.HIGH, SCALYR_SERVER_DOC)
         .define(SCALYR_API_CONFIG, Type.PASSWORD, Importance.HIGH, SCALYR_API_DOC)
-        .define(COMPRESSION_TYPE_CONFIG,  Type.STRING, DEFAULT_COMPRESSION_TYPE, Importance.LOW, COMPRESSION_TYPE_DOC)
-        .define(COMPRESSION_LEVEL_CONFIG, Type.INT, null, Importance.LOW, COMPRESSION_LEVEL_DOC)
-        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_TIMEOUT_MS, Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
-        .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_RETRY_DELAY_MS, Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
         .define(EVENT_ENRICHMENT_CONFIG, Type.LIST, null, enrichmentValidator, Importance.LOW, EVENT_ENRICHMENT_DOC)
-        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, DEFAULT_BATCH_SEND_SIZE_BYTES, Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC)
-        .define(BATCH_SEND_WAIT_MS_CONFIG, Type.INT, DEFAULT_BATCH_SEND_WAIT_MS, Importance.LOW, BATCH_SEND_WAIT_MS_DOC);
+        .define(COMPRESSION_TYPE_CONFIG,  Type.STRING, DEFAULT_COMPRESSION_TYPE,
+          ConfigDef.ValidString.in(CompressorFactory.SUPPORTED_COMPRESSION_NAMES.toArray(new String[0])), Importance.LOW, COMPRESSION_TYPE_DOC)
+        .define(COMPRESSION_LEVEL_CONFIG, Type.INT, null, Importance.LOW, COMPRESSION_LEVEL_DOC)
+        .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_TIMEOUT_MS, ConfigDef.Range.atLeast(2000), Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
+        .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_RETRY_DELAY_MS, ConfigDef.Range.atLeast(100), Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
+        .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, DEFAULT_BATCH_SEND_SIZE_BYTES, ConfigDef.Range.between(500_000, 6_000_000), Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC)
+        .define(BATCH_SEND_WAIT_MS_CONFIG, Type.INT, DEFAULT_BATCH_SEND_WAIT_MS, ConfigDef.Range.atLeast(1000), Importance.LOW, BATCH_SEND_WAIT_MS_DOC);
   }
+
+
+  /**
+   * Validator for Scalyr server.  https must be used for scalyr.com.  localhost is used for testing.
+   */
+  private static final ConfigDef.Validator scalyrServerValidator = (name, value) -> {
+    String server = (String)value;
+    if (!((server.startsWith("https://") && server.endsWith("scalyr.com")) || server.startsWith("http://localhost"))) {
+      throw new ConfigException("Valid Scalyr server URLs include " + PROD_SCALYR_SERVER + ", " + EU_SCALYR_SERVER);
+    }
+  };
 
   /**
    * Validator for EVENT_ENRICHMENT_CONFIG
