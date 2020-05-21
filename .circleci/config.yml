@@ -40,7 +40,19 @@ jobs: # a collection of steps
           command: |
             set -x
             docker-compose up -d
-
+            docker-compose ps
+            # Wait for Kafka to be ready
+            docker run --network container:kafka confluentinc/cp-kafka:latest cub kafka-ready -z zookeeper:2181 1 60
+            # Create Scalyr Sink Connector
+            docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused \
+              -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
+              -d '{"name": "scalyr-sink-connector", "config": {"connector.class": "com.scalyr.integrations.kafka.ScalyrSinkConnector", "value.converter": "org.apache.kafka.connect.json.JsonConverter", "value.converter.schemas.enable":"false", "tasks.max": "3", "topics": "logs", "api_key": "0JXjf2ipYgYHI5Z_UCbPwHydWvGVCOHaz49zHlQzpzS0-", "event_enrichment": "origin=kafka-connect-build-test" }  }'
+            # Verify Scalyr Sink Connector is created
+            docker run  --network container:connect appropriate/curl --retry 10 --retry-connrefused \
+              -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
+              | grep scalyr-sink-connector
+            # Generate log messsages for 30 seconds
+            sleep 30
 
       - store_test_results: # uploads the test metadata from the `target/surefire-reports` directory so that it can show up in the CircleCI dashboard. 
           # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/

@@ -2,12 +2,14 @@ version: '3'
 services:
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
     image: confluentinc/cp-kafka:latest
+    container_name: kafka
     depends_on:
       - zookeeper
     ports:
@@ -38,6 +40,7 @@ services:
     build:
       context: .
       dockerfile: src/test/SystemTest/docker/kafka-connect/Dockerfile
+    container_name: connect
     ports:
       - "8088:8088"
     depends_on:
@@ -78,6 +81,6 @@ services:
 
   flog:
     image: mingrammer/flog
-    command: /bin/flog --loop --format apache_combined --delay 2
+    command: /bin/flog --loop --format apache_combined --delay 0.1
     depends_on:
       - filebeat
