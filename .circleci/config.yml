@@ -44,13 +44,19 @@ jobs: # a collection of steps
             # Wait for Kafka to be ready
             docker run --network container:kafka confluentinc/cp-kafka:latest cub kafka-ready -z zookeeper:2181 1 60
             # Create Scalyr Sink Connector
+            # Create connector json with write api key substitutes
+            .circleci/create_connector_json.sh > scalyr_connector.json
+            cat scalyr_connector.json
             docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused \
               -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
-              -d '{"name": "scalyr-sink-connector", "config": {"connector.class": "com.scalyr.integrations.kafka.ScalyrSinkConnector", "value.converter": "org.apache.kafka.connect.json.JsonConverter", "value.converter.schemas.enable":"false", "tasks.max": "3", "topics": "logs", "api_key": "0JXjf2ipYgYHI5Z_UCbPwHydWvGVCOHaz49zHlQzpzS0-", "event_enrichment": "origin=kafka-connect-build-test" }  }'
+              -d "`cat scalyr_connector.json`"
             # Verify Scalyr Sink Connector is created
             docker run  --network container:connect appropriate/curl --retry 10 --retry-connrefused \
               -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
               | grep scalyr-sink-connector
+            docker run  --network container:connect appropriate/curl --retry 10 --retry-connrefused \
+              -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors?expand=info&expand=status
+
             # Generate log messsages for 30 seconds
             sleep 30
 
