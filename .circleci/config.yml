@@ -35,6 +35,14 @@ jobs: # a collection of steps
 
       - setup_remote_docker
 
+      - run: # Python dependencies for System Test
+          name: Python Dependencies
+          command: |
+            set -x
+            sudo apt update
+            sudo apt install python-pip
+            pip install requests
+
       - run:
           name: System Test
           command: |
@@ -46,7 +54,6 @@ jobs: # a collection of steps
             # Create Scalyr Sink Connector
             # Create connector json with write api key substitutes
             .circleci/create_connector_json.sh > scalyr_connector.json
-            cat scalyr_connector.json
             docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused \
               -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
               -d "`cat scalyr_connector.json`"
@@ -54,11 +61,9 @@ jobs: # a collection of steps
             docker run  --network container:connect appropriate/curl --retry 10 --retry-connrefused \
               -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
               | grep scalyr-sink-connector
-            docker run  --network container:connect appropriate/curl --retry 10 --retry-connrefused \
-              -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors?expand=info&expand=status
 
-            # Generate log messsages for 30 seconds
-            sleep 30
+            # Verify logs are in Scalyr
+            python .circleci/verify_scalyr_events.py
 
       - store_test_results: # uploads the test metadata from the `target/surefire-reports` directory so that it can show up in the CircleCI dashboard. 
           # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
