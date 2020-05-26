@@ -75,7 +75,7 @@ def check_scalyr_events():
   return true if they are
   """
   scalyr_server = "app.scalyr.com"
-  max_events = 100
+  max_events = 5000
   max_tries = 10
   matches = 0
   retry_delay_sec = 1

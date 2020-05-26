@@ -87,6 +87,6 @@ services:
 
   flog:
     image: mingrammer/flog
-    command: /bin/flog --loop --format apache_combined --delay 0.1
+    command: /bin/flog --loop --format apache_combined --delay 0.02
     depends_on:
       - filebeat
