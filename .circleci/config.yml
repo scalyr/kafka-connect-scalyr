@@ -53,29 +53,8 @@ jobs: # a collection of steps
             # Wait for Kafka to be ready
             docker run --network container:kafka confluentinc/cp-kafka:latest cub kafka-ready -z zookeeper:2181 1 60
 
-            # Wait for Kafka Connect to be ready
-            sleep_time=1
-            max_tries=5
-            i=0
-            while [[ "$(docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused   -H "Content-Type: application/json" -H "Accept: application/json"  -s -o /dev/null -w %{response_code}  http://connect:8088/connectors)"  != "200" && $i < $max_tries ]]
-              do
-                echo -n .
-                sleep $sleep_time
-                sleep_time=$((sleep_time * 2))
-                i=$((i + 1))
-              done
-            [[ $i -eq $max_tries ]] && echo "Timeout waiting for Kafka Connect to start" && exit 1
-
-            # Create Scalyr Sink Connector
-            .circleci/create_connector_json.sh > scalyr_connector.json # Create connector json with write api key substitutes
-            docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused \
-              -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
-              -d "`cat scalyr_connector.json`"
-
-            # Verify Scalyr Sink Connector is created
-            docker run  --network container:connect appropriate/curl --retry 10 --retry-connrefused \
-              -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
-              | grep scalyr-sink-connector
+            # Configure Scalyr Sink Connector to run in distributed worker configuration
+            .circleci/configure_scalyr_connector.sh
 
             # Verify logs are in Scalyr
             python .circleci/verify_scalyr_events.py

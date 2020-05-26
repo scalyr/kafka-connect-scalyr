@@ -22,20 +22,9 @@ docker-compose up -d
 # View the containers started
 docker-compose ps
 
-# Wait a minute until all the services are running in the containers
-
-# Create Scalyr Sink Connector
-# Create connector json with write api key substitutes
-.circleci/create_connector_json.sh > /tmp/scalyr_connector.json
-docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused \
-  -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
-  -d "`cat /tmp/scalyr_connector.json`"
-
-# Verify Scalyr Sink Connector is created
-docker run  --network container:connect appropriate/curl --retry 10 --retry-connrefused \
-  -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
-  | grep scalyr-sink-connector
-   
+# Configure Scalyr Sink Connector to run in distributed worker configuration
+.circleci/configure_scalyr_connector.sh
+ 
 # Verify logs are in Scalyr
 python .circleci/verify_scalyr_events.py
 
