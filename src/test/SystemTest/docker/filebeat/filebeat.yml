@@ -1,0 +1,33 @@
+# Send logs from flog containers
+filebeat.autodiscover:
+  providers:
+    - type: docker
+      templates:
+        - condition:
+            contains:
+              docker.container.image: flog
+          config:
+            - type: container
+              paths:
+                - /var/lib/docker/containers/${data.docker.container.id}/*.log
+
+processors:
+- add_cloud_metadata: ~
+
+# Configure Scalyr parser
+fields:
+  parser: accessLog
+
+# Output to Kafka cluster.  Kafka cluster must be set in ${KAFKA_SERVERS} env variable.
+output.kafka:
+  # initial brokers for reading cluster metadata
+  hosts: '${KAFKA_SERVERS}'
+
+  # message topic selection + partitioning
+  topic: "logs"
+  partition.round_robin:
+    reachable_only: false
+
+  required_acks: 1
+  compression: gzip
+  max_message_bytes: 1000000

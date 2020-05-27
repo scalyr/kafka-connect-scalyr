@@ -1,0 +1,92 @@
+# Creates System Test env using Docker with the following containers:
+# 1. Zookeeper
+# 2. Kafka with topics for logs and Kafka Connect running in distributed mode
+# 3. Kafka Connect with Scalyr Sink Connector installed
+# 4. Filebeat configured to send logs from flog containers to Kafka
+# 5. flog to generate fake log events
+
+version: '3'
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    container_name: kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - 9092:9092
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+
+  kafka-setup:
+    image: confluentinc/cp-kafka:latest
+    depends_on:
+      - kafka
+    command: "bash -c 'echo Waiting for Kafka to be ready... && \
+                       cub kafka-ready -z zookeeper:2181 1 30 && \
+                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-config-storage && \
+                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-offset-storage && \
+                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-status-storage && \
+                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic logs'"
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+
+  connect:
+    build:
+      context: .
+      dockerfile: src/test/SystemTest/docker/kafka-connect/Dockerfile
+    container_name: connect
+    ports:
+      - "8088:8088"
+    depends_on:
+      - kafka
+      - kafka-setup
+    environment:
+      CONNECT_BOOTSTRAP_SERVERS: kafka:29092
+      CONNECT_GROUP_ID: "connect-group" 
+      CONNECT_CONFIG_STORAGE_TOPIC: "connect-config-storage" 
+      CONNECT_OFFSET_STORAGE_TOPIC: "connect-offset-storage" 
+      CONNECT_STATUS_STORAGE_TOPIC: "connect-status-storage" 
+      CONNECT_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter" 
+      CONNECT_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter" 
+      CONNECT_INTERNAL_KEY_CONVERTER: "org.apache.kafka.connect.json.JsonConverter" 
+      CONNECT_INTERNAL_VALUE_CONVERTER: "org.apache.kafka.connect.json.JsonConverter"
+      CONNECT_PLUGIN_PATH: "/etc/kafka-connect/jars"
+      CONNECT_REST_ADVERTISED_HOST_NAME: "connect" 
+      CONNECT_REST_HOST_NAME: "connect" 
+      CONNECT_REST_PORT: "8088" 
+      CONNECT_CONFIG_STORAGE_REPLICATION_FACTOR: 1 
+      CONNECT_OFFSET_STORAGE_REPLICATION_FACTOR: 1 
+      CONNECT_STATUS_STORAGE_REPLICATION_FACTOR: 1
+      CONNECT_LOG4J_ROOT_LOGLEVEL: "INFO"
+
+  filebeat:
+    build: src/test/SystemTest/docker/filebeat
+    depends_on:
+      - kafka
+      - kafka-setup
+    command: "--strict.perms=false -v -e -d autodiscover,docker"
+    user: root
+    volumes:
+      - /var/lib/docker/containers/:/var/lib/docker/containers/:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      KAFKA_SERVERS: kafka:29092
+
+  flog:
+    image: mingrammer/flog
+    command: /bin/flog --loop --format apache_combined --delay 0.02
+    depends_on:
+      - filebeat

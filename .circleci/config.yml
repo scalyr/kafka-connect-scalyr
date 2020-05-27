@@ -33,6 +33,32 @@ jobs: # a collection of steps
 
       - run: mvn package # run the actual tests
 
+      - setup_remote_docker
+
+      - run: # Python dependencies for System Test
+          name: Python Dependencies
+          command: |
+            set -x
+            sudo apt update
+            sudo apt install python-pip
+            pip install requests
+
+      - run:
+          name: System Test
+          command: |
+            set -x
+            docker-compose up -d
+            docker-compose ps
+
+            # Wait for Kafka to be ready
+            docker run --network container:kafka confluentinc/cp-kafka:latest cub kafka-ready -z zookeeper:2181 1 60
+
+            # Configure Scalyr Sink Connector to run in distributed worker configuration
+            .circleci/configure_scalyr_connector.sh
+
+            # Verify logs are in Scalyr
+            python .circleci/verify_scalyr_events.py
+
       - store_test_results: # uploads the test metadata from the `target/surefire-reports` directory so that it can show up in the CircleCI dashboard. 
           # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/
           path: target/surefire-reports
