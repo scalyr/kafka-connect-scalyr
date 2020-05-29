@@ -58,7 +58,7 @@ public class CustomAppMessageMapperTest {
       "failed", "failed",
       "activityType", "activityType"
     ));
-    CustomAppEventMapping.Matcher matcher = customAppEventMapping.new Matcher();
+    CustomAppEventMapping.Matcher matcher = new CustomAppEventMapping.Matcher();
     matcher.setAttribute("application.name");
     matcher.setValue(TestValues.CUSTOM_APP_NAME);
     customAppEventMapping.setMatcher(matcher);
@@ -187,9 +187,6 @@ public class CustomAppMessageMapperTest {
 
       final Schema parserSchema = SchemaBuilder.struct().name("parser")
         .field("parser", Schema.STRING_SCHEMA);
-
-      final Schema agentSchema = SchemaBuilder.struct().name("agent")
-        .field("type", Schema.STRING_SCHEMA);
 
       final Schema customAppSchema = SchemaBuilder.struct().name("customApp")
         .field("id", Schema.STRING_SCHEMA)

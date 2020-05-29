@@ -130,7 +130,7 @@ public class CustomAppEventMapping {
   /**
    * Defines the field and value to determine whether the message matches the custom app event mapping.
    */
-  public class Matcher {
+  public static class Matcher {
     private String attribute;
     private String value;
 
@@ -147,7 +147,7 @@ public class CustomAppEventMapping {
    * Parses custom app mapping config JSON and constructs `CustomAppEventMapping` from the JSON.
    * @param customAppConfig custom app mapping config JSON in the format: [{customAppEventMapping1}, {customAppEventMapping2}]
    * @return List<CustomAppEventMapping> from the parsed JSON config
-   * @throws IOException
+   * @throws IOException if custom app event mapping JSON cannot be parsed
    */
   public static List<CustomAppEventMapping> parseCustomAppEventMappingConfig(String customAppConfig) throws IOException {
     ObjectMapper objectMapper = new ObjectMapper();

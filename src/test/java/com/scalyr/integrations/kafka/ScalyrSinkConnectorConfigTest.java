@@ -205,31 +205,31 @@ public class ScalyrSinkConnectorConfigTest {
 
     Map<String, Object> customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.remove("matcher");
-    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Arrays.asList(customAppEventMapping)));
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.remove("eventMapping");
-    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Arrays.asList(customAppEventMapping)));
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.put("matcher", Collections.EMPTY_MAP);
-    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Arrays.asList(customAppEventMapping)));
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.put("eventMapping", Collections.EMPTY_MAP);
-    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Arrays.asList(customAppEventMapping)));
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.put("extraField", "bad");
-    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Arrays.asList(customAppEventMapping)));
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
   }

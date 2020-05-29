@@ -55,8 +55,7 @@ public class CustomAppMessageMapper implements MessageMapper {
   @Override
   public Map<String, Object> getAdditionalAttrs(SinkRecord record) {
     Map<String, Object> additionalAttrs = new HashMap<>();
-    additionalAttrsFields.entrySet().forEach(entry ->
-      additionalAttrs.put(entry.getKey(), FieldExtractor.getField(record.value(), entry.getValue())));
+    additionalAttrsFields.forEach((key, value) -> additionalAttrs.put(key, FieldExtractor.getField(record.value(), value)));
 
     return additionalAttrs;
   }

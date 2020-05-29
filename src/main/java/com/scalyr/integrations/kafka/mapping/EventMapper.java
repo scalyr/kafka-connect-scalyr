@@ -36,7 +36,7 @@ import java.util.stream.Stream;
 public class EventMapper {
 
   private static final List<MessageMapper> messageMappers = Stream.of(new FilebeatMessageMapper()).collect(Collectors.toList());
-  private Map<String, String> enrichmentAttrs;
+  private final Map<String, String> enrichmentAttrs;
 
   /**
    * @param enrichmentAttrs Map<String, String> of enrichment key/value pairs

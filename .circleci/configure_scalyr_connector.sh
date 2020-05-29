@@ -22,7 +22,7 @@ SCALYR_CONNECTOR_CONFIG="/tmp/scalyr_connector.json"
 
 # Creates Scalyr Sink Connector config JSON
 function create_connector_config {
-  cat << EOF > $1
+  cat << EOF > "$1"
 {
   "name": "scalyr-sink-connector",
   "config": {
@@ -32,9 +32,9 @@ function create_connector_config {
     "tasks.max": "3",
     "topics": "logs",
 EOF
-  echo "    \"api_key\": \"$WRITE_API_KEY\"," >> $1
-  echo "    \"event_enrichment\": \"origin=kafka-connect-build-$CIRCLE_BUILD_NUM\"" >> $1
-  echo "  }  }" >> $1
+  echo "    \"api_key\": \"$WRITE_API_KEY\"," >> "$1"
+  echo "    \"event_enrichment\": \"origin=kafka-connect-build-$CIRCLE_BUILD_NUM\"" >> "$1"
+  echo "  }  }" >> "$1"
 }
 
 # Wait for Kafka Connect to be ready by checking http://connect:8088/connectors API
@@ -43,7 +43,7 @@ function wait_for_connect_ready {
   sleep_time=1
   max_tries=5
   i=0
-  while [[ "$(docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused   -H "Content-Type: application/json" -H "Accept: application/json"  -s -o /dev/null -w %{response_code}  http://connect:8088/connectors)"  != "200" && $i < $max_tries ]]
+  while [[ "$(docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused   -H "Content-Type: application/json" -H "Accept: application/json"  -s -o /dev/null -w "%{response_code}"  http://connect:8088/connectors)"  != "200" && $i < $max_tries ]]
     do
       echo -n .
       sleep $sleep_time
@@ -61,7 +61,7 @@ wait_for_connect_ready
 create_connector_config $SCALYR_CONNECTOR_CONFIG # Create connector json with write api key substitutes
 docker run --network container:connect appropriate/curl --retry 10 --retry-connrefused \
   -H "Content-Type: application/json" -H "Accept: application/json"  http://connect:8088/connectors \
-  -d "`cat $SCALYR_CONNECTOR_CONFIG`"
+  -d "$(cat $SCALYR_CONNECTOR_CONFIG)"
 
 # Verify Scalyr Sink Connector is configured
 docker run  --network container:connect appropriate/curl --retry 10 --retry-connrefused \

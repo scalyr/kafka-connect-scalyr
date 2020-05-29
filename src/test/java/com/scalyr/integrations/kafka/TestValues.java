@@ -21,6 +21,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -68,8 +69,8 @@ public abstract class TestValues {
       ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM = objectMapper.writeValueAsString(new AddEventsClient.AddEventsResponse()
         .setStatus("error/client/badParam").setMessage("Maybe caused by bad api key"));
 
-      CUSTOM_APP_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Arrays.asList(createCustomAppEventMapping(".")));
-      CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON = objectMapper.writeValueAsString(Arrays.asList(createCustomAppEventMapping("_")));
+      CUSTOM_APP_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping(".")));
+      CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping("_")));
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
