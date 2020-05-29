@@ -56,7 +56,7 @@ public class CustomAppMessageMapperTest {
       "version", "application.version",
       "severity", "severity",
       "failed", "failed",
-      "activity_type", "activity_type"
+      "activityType", "activityType"
     ));
     CustomAppEventMapping.Matcher matcher = customAppEventMapping.new Matcher();
     matcher.setAttribute("application.name");
@@ -70,7 +70,7 @@ public class CustomAppMessageMapperTest {
    * Test mapper gets correct values for schemaless record value
    */
   @Test
-  public void testFileBeatsMessageMapperSchemaless() {
+  public void testCustomAppMessageMapperSchemaless() {
     SinkRecord record = new SinkRecord(topic, partition, null, null, null, sinkRecordValueCreator.createSchemalessRecordValue(1, 1, 1), offset.getAndIncrement());
     verifySinkRecord(record);
   }
@@ -79,7 +79,7 @@ public class CustomAppMessageMapperTest {
    * Test mapper gets correct values for schema record value
    */
   @Test
-  public void testFileBeatsMessageMapperSchema() {
+  public void testCustomAppMessageMapperSchema() {
     SinkRecord record = new SinkRecord(topic, partition, null, null, null, sinkRecordValueCreator.createSchemaRecordValue(1, 1, 1), offset.getAndIncrement());
     verifySinkRecord(record);
   }
@@ -94,7 +94,7 @@ public class CustomAppMessageMapperTest {
     assertEquals(TestValues.SEVERITY_VALUE, additionalAttrs.get("severity"));
     assertEquals(TestValues.CUSTOM_APP_VERSION, additionalAttrs.get("version"));
     assertEquals(TestValues.CUSTOM_APP_NAME, additionalAttrs.get("application"));
-    assertEquals(TestValues.ACTIVITY_TYPE_VALUE, additionalAttrs.get("activity_type"));
+    assertEquals(TestValues.ACTIVITY_TYPE_VALUE, additionalAttrs.get("activityType"));
 
     assertTrue(messageMapper.matches(record));
   }
@@ -111,6 +111,10 @@ public class CustomAppMessageMapperTest {
     assertNull(messageMapper.getServerHost(record));
     assertFalse(messageMapper.matches(record));
     Map<String, Object> additionalAttrs = messageMapper.getAdditionalAttrs(record);
+    assertTrue(additionalAttrs.containsKey("id"));
+    assertTrue(additionalAttrs.containsKey("severity"));
+    assertTrue(additionalAttrs.containsKey("version"));
+    assertTrue(additionalAttrs.containsKey("application"));
     assertNull(additionalAttrs.get("id"));
     assertNull(additionalAttrs.get("severity"));
     assertNull(additionalAttrs.get("version"));
@@ -161,8 +165,8 @@ public class CustomAppMessageMapperTest {
       // {failed: false}
       value.put("failed", false);
 
-      // {activity_type: ["web-access"]
-      value.put("activity_type", TestValues.ACTIVITY_TYPE_VALUE);
+      // {activityType: ["web-access"]
+      value.put("activityType", TestValues.ACTIVITY_TYPE_VALUE);
 
       return value;
     }
@@ -195,7 +199,7 @@ public class CustomAppMessageMapperTest {
         .field("scalyr", parserSchema)
         .field("severity", Schema.INT32_SCHEMA)
         .field("failed", Schema.BOOLEAN_SCHEMA)
-        .field("activity_type", SchemaBuilder.array(Schema.STRING_SCHEMA).build())
+        .field("activityType", SchemaBuilder.array(Schema.STRING_SCHEMA).build())
         .build();
 
       Struct value = new Struct(customAppSchema);
@@ -207,7 +211,7 @@ public class CustomAppMessageMapperTest {
       value.put("scalyr", new Struct(parserSchema).put("parser", TestValues.PARSER_VALUE));
       value.put("severity", TestValues.SEVERITY_VALUE);
       value.put("failed", false);
-      value.put("activity_type", TestValues.ACTIVITY_TYPE_VALUE);
+      value.put("activityType", TestValues.ACTIVITY_TYPE_VALUE);
 
       return value;
     }

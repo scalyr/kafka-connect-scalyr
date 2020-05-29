@@ -16,7 +16,6 @@
 
 package com.scalyr.integrations.kafka.mapping;
 
-import com.google.common.collect.ImmutableList;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.Event;
 import org.apache.kafka.connect.errors.DataException;
@@ -27,6 +26,7 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Converts a SinkRecord to a Scalyr Event.
@@ -35,15 +35,16 @@ import java.util.stream.Collectors;
  */
 public class EventMapper {
 
-  private static final List<MessageMapper> messageMappers = ImmutableList.of(new FilebeatMessageMapper());
+  private static final List<MessageMapper> messageMappers = Stream.of(new FilebeatMessageMapper()).collect(Collectors.toList());
   private Map<String, String> enrichmentAttrs;
 
   /**
    * @param enrichmentAttrs Map<String, String> of enrichment key/value pairs
    */
-  public EventMapper(Map<String, String> enrichmentAttrs) {
-    if (enrichmentAttrs != null) {
-      this.enrichmentAttrs = enrichmentAttrs;
+  public EventMapper(Map<String, String> enrichmentAttrs, List<CustomAppEventMapping> customAppEventMappings) {
+    this.enrichmentAttrs = enrichmentAttrs;
+    if (customAppEventMappings != null) {
+      customAppEventMappings.forEach(customAppEventMapping -> messageMappers.add(new CustomAppMessageMapper(customAppEventMapping)));
     }
   }
 
@@ -72,7 +73,8 @@ public class EventMapper {
       .setLogfile(messageMapper.getLogfile(record))
       .setParser(messageMapper.getParser(record))
       .setMessage(messageMapper.getMessage(record))
-      .setEnrichmentAttrs(enrichmentAttrs);
+      .setEnrichmentAttrs(enrichmentAttrs)
+      .setAdditionalAttrs(messageMapper.getAdditionalAttrs(record));
   }
 
   /**

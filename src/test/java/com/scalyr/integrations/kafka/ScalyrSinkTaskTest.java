@@ -18,11 +18,13 @@ package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.scalyr.api.internal.ScalyrUtil;
+import com.scalyr.integrations.kafka.mapping.CustomAppEventMapping;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -67,6 +69,10 @@ public class ScalyrSinkTaskTest {
 
   public ScalyrSinkTaskTest(TriFunction<Integer, Integer, Integer, Object> recordValue) {
     this.recordValue = recordValue;
+    // Print test params
+    Object data = recordValue.apply(1, 1, 1);
+    System.out.println("Executing test with " + (data instanceof Struct ? "schema" : "schemaless") + " recordValue: " + data);
+
   }
 
   @Before
@@ -121,7 +127,9 @@ public class ScalyrSinkTaskTest {
    * @param records SinkRecords sent
    */
   private void verifyRecords(MockWebServer server, List<SinkRecord> records) throws InterruptedException, java.io.IOException {
-    EventMapper eventMapper = new EventMapper(scalyrSinkTask.parseEnrichmentAttrs(new ScalyrSinkConnectorConfig(createConfig()).getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
+    EventMapper eventMapper = new EventMapper(
+      scalyrSinkTask.parseEnrichmentAttrs(new ScalyrSinkConnectorConfig(createConfig()).getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)),
+      CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON));
 
     List<Event> events = records.stream()
       .map(eventMapper::createEvent)
@@ -355,6 +363,7 @@ public class ScalyrSinkTaskTest {
     return TestUtils.makeMap(
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TestValues.API_KEY_VALUE,
       ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, CompressorFactory.NONE,
-      ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG, TestValues.ENRICHMENT_VALUE);
+      ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG, TestValues.ENRICHMENT_VALUE,
+      ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG, TestValues.CUSTOM_APP_EVENT_MAPPING_JSON);
   }
 }

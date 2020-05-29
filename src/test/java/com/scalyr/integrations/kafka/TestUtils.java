@@ -18,6 +18,7 @@ package com.scalyr.integrations.kafka;
 
 import com.google.common.collect.ImmutableList;
 import com.scalyr.api.internal.ScalyrUtil;
+import com.scalyr.integrations.kafka.mapping.CustomAppMessageMapperTest;
 import com.scalyr.integrations.kafka.mapping.FilebeatMessageMapperTest;
 import com.scalyr.integrations.kafka.mapping.SinkRecordValueCreator;
 import okhttp3.mockwebserver.MockResponse;
@@ -81,7 +82,9 @@ public class TestUtils {
   /**
    * RecordValueCreators to test
    */
-  private static final List<SinkRecordValueCreator> sinkRecordValueCreators = ImmutableList.of(new FilebeatMessageMapperTest.FilebeatSinkRecordValueCreator());
+  private static final List<SinkRecordValueCreator> sinkRecordValueCreators = ImmutableList.of(
+    new FilebeatMessageMapperTest.FilebeatSinkRecordValueCreator(),
+    new CustomAppMessageMapperTest.CustomAppRecordValueCreator());
 
   /**
    * Create test parameters for each SinkRecordValueCreator type

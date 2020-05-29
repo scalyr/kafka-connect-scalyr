@@ -81,15 +81,18 @@ public abstract class TestValues {
   public static Map<String, Object> createCustomAppEventMapping(String delimiter) {
     Map<String, Object> customAppEventMapper = new HashMap<>();
     customAppEventMapper.put("matcher", TestUtils.makeMap(
-      "attribute", "app" + delimiter + "name",
-      "value", "myapp"));
+      "attribute", "application" + delimiter + "name",
+      "value", CUSTOM_APP_NAME));
 
     customAppEventMapper.put("eventMapping", TestUtils.makeMap(
       "message", "message",
-      "logfile", "log" + delimiter + "path",
+      "logfile", "application" + delimiter + "name",
       "serverHost", "host" + delimiter + "hostname",
-      "parser", "fields" + delimiter + "parser",
-      "version", "app" + delimiter + "version"
+      "parser", "scalyr" + delimiter + "parser",
+      "version", "application" + delimiter + "version",
+      "application", "application" + delimiter + "name",
+      "failed", "failed",
+      "activityType", "activityType"
     ));
 
     if (!delimiter.equals(".")) {
