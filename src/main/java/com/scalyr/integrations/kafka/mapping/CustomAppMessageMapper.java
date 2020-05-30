@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * Uses CustomAppEventMapping to map custom app messages to Scalyr events.
+ * Maps custom app messages to Scalyr events using {@link CustomAppEventMapping} event mapping definition.
  */
 public class CustomAppMessageMapper implements MessageMapper {
   private final List<String> messageFields;

@@ -1,12 +1,15 @@
 package com.scalyr.integrations.kafka.mapping;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
 import com.scalyr.integrations.kafka.TestValues;
 import org.junit.Test;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 
 import static org.junit.Assert.assertEquals;
 
@@ -27,6 +30,25 @@ public class CustomAppEventMappingTest {
     List<CustomAppEventMapping> customAppEventMappings = CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON);
     assertEquals(1, customAppEventMappings.size());
     verifyCustomApplicationEventMapping(customAppEventMappings.get(0));
+  }
+
+  /**
+   * Verify undefined fields in event mapping return empty list for fields.
+   */
+  @Test
+  public void testUndefinedFields() throws IOException {
+    // Create event mapping with missing Scalyr fields
+    Map<String, Object> customAppEventMappingDefinition = TestValues.createCustomAppEventMapping(".");
+    ((Map)customAppEventMappingDefinition.get("eventMapping")).remove("logfile");
+    ((Map)customAppEventMappingDefinition.get("eventMapping")).remove("parser");
+
+    ObjectMapper objectMapper = new ObjectMapper();
+    List<CustomAppEventMapping> customAppEventMappings = CustomAppEventMapping.parseCustomAppEventMappingConfig(
+      objectMapper.writeValueAsString(Collections.singletonList(customAppEventMappingDefinition)));
+    assertEquals(1, customAppEventMappings.size());
+    CustomAppEventMapping customAppEventMapping = customAppEventMappings.get(0);
+    assertEquals(Collections.EMPTY_LIST, customAppEventMapping.getParserFields());
+    assertEquals(Collections.EMPTY_LIST, customAppEventMapping.getLogfileFields());
   }
 
   /**

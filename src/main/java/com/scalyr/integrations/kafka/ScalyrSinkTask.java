@@ -122,7 +122,6 @@ public class ScalyrSinkTask extends SinkTask {
     log.info("Started ScalyrSinkTask");
   }
 
-
   /**
    * Sends the records to Scalyr using the addEvents API.
    * Buffers events until `batchSendSizeBytes` is met.
