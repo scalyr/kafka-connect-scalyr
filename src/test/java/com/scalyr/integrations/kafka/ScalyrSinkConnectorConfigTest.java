@@ -203,30 +203,42 @@ public class ScalyrSinkConnectorConfigTest {
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
+    // No matcher field
     Map<String, Object> customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.remove("matcher");
     config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
+    // No event mapping
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.remove("eventMapping");
     config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
+    // Empty matcher
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.put("matcher", Collections.EMPTY_MAP);
     config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
+    // Empty event mapping
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.put("eventMapping", Collections.EMPTY_MAP);
     config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
+    // No message or application attributes defined
+    customAppEventMapping = TestValues.createCustomAppEventMapping(".");
+    customAppEventMapping.put("eventMapping", TestUtils.makeMap("logfile", "/var/log/syslog", "serverHost", "testHost", "parser", "systemLog"));
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    // Invalid fields
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.put("extraField", "bad");
     config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));

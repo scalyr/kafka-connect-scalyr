@@ -139,9 +139,8 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
           throw new ConfigException("Custom event application mapping matcher not defined");
         }
 
-        if (mapping.getLogfileFields().isEmpty() && mapping.getMessageFields().isEmpty() &&
-            mapping.getServerHostFields().isEmpty() && mapping.getParserFields().isEmpty() && mapping.getAdditionalAttrFields().isEmpty()) {
-          throw new ConfigException("Custom event application mapping must define event attribute mappings");
+        if (mapping.getMessageFields().isEmpty() && mapping.getAdditionalAttrFields().isEmpty()) {
+          throw new ConfigException("Either message field or application attribute fields must be defined");
         }
       }
     } catch (IOException | IllegalArgumentException e) {
