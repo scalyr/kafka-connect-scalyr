@@ -67,7 +67,7 @@ public class CompressorFactory {
     private static final int defaultCompressionLevel = 6;
 
     public DeflateCompressor(@Nullable Integer nullableCompressionLevel) {
-      int compressionLevel = nullableCompressionLevel == null ? defaultCompressionLevel : nullableCompressionLevel.intValue();
+      int compressionLevel = nullableCompressionLevel == null ? defaultCompressionLevel : nullableCompressionLevel;
       Preconditions.checkArgument(compressionLevel >= minCompressionLevel && compressionLevel <= maxCompressionLevel, "Invalid compression level");
       this.compressionLevel = compressionLevel;
     }
@@ -99,7 +99,7 @@ public class CompressorFactory {
     private static final int defaultCompressionLevel = 0; // 0 means default, which is controlled by ZSTD_CLEVEL_DEFAULT
 
     public ZstdCompressor(@Nullable Integer nullableCompressionLevel) {
-      int compressionLevel = nullableCompressionLevel == null ? defaultCompressionLevel : nullableCompressionLevel.intValue();
+      int compressionLevel = nullableCompressionLevel == null ? defaultCompressionLevel : nullableCompressionLevel;
       Preconditions.checkArgument(compressionLevel >= minCompressionLevel && compressionLevel <= maxCompressionLevel, "Invalid compression level");
       this.compressionLevel = compressionLevel;
     }

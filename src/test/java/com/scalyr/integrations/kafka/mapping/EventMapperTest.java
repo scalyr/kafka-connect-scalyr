@@ -21,6 +21,7 @@ import com.scalyr.integrations.kafka.Event;
 import com.scalyr.integrations.kafka.TestUtils;
 import com.scalyr.integrations.kafka.TestValues;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
@@ -28,6 +29,7 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -69,11 +71,16 @@ public class EventMapperTest {
   public EventMapperTest(Supplier<Object> recordValue, Map<String, String> enrichmentAttrs) {
     this.recordValue = recordValue;
     this.enrichmentAttrs = enrichmentAttrs;
+
+    // Print test params
+    Object data = recordValue.get();
+    System.out.println("Executing test with " + (data instanceof Struct ? "schema" : "schemaless") + " recordValue: " + data
+      + "\nenrichmentAttrs: " + enrichmentAttrs);
   }
 
   @Before
-  public void setup() {
-    this.eventMapper = new EventMapper(enrichmentAttrs);
+  public void setup() throws IOException {
+    this.eventMapper = new EventMapper(enrichmentAttrs, CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON));
   }
 
   /**
@@ -117,13 +124,33 @@ public class EventMapperTest {
    * Validate Scalyr event matches SinkRecord
    */
   private void validateEvent(Event event) {
-    assertEquals(TestValues.MESSAGE_VALUE, event.getMessage());
-    assertEquals(TestValues.LOGFILE_VALUE + "0", event.getLogfile());
-    assertEquals(TestValues.PARSER_VALUE + "0", event.getParser());
     assertEquals(TestValues.SERVER_VALUE + "0", event.getServerHost());
+    assertEquals(TestValues.MESSAGE_VALUE, event.getMessage());
     assertEquals(topic, event.getTopic());
     assertEquals(partition, event.getPartition());
     assertEquals(offset.get() - 1, event.getOffset());
     assertEquals(enrichmentAttrs, event.getEnrichmentAttrs());
+
+    if (event.getLogfile().equals(TestValues.CUSTOM_APP_NAME)) {
+      validateCustomAppFields(event);
+    } else {
+      validateFilebeatFields(event);
+    }
+  }
+
+  private void validateFilebeatFields(Event event) {
+    assertEquals(TestValues.LOGFILE_VALUE + "0", event.getLogfile());
+    assertEquals(TestValues.PARSER_VALUE + "0", event.getParser());
+  }
+
+  private void validateCustomAppFields(Event event) {
+    assertEquals(TestValues.CUSTOM_APP_NAME, event.getLogfile());
+    assertEquals(TestValues.PARSER_VALUE, event.getParser());
+    Map<String, Object> additionalAttrs = event.getAdditionalAttrs();
+    assertEquals(4, additionalAttrs.size());
+    assertEquals(TestValues.CUSTOM_APP_NAME, additionalAttrs.get("application"));
+    assertEquals(TestValues.CUSTOM_APP_VERSION, additionalAttrs.get("version"));
+    assertEquals(TestValues.ACTIVITY_TYPE_VALUE, additionalAttrs.get("activityType"));
+    assertEquals(false, additionalAttrs.get("failed"));
   }
 }

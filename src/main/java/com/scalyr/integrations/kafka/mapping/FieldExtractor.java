@@ -31,7 +31,9 @@ public class FieldExtractor {
    * Call the correct {@link #getField} based on the recordValue type.
    */
   public static Object getField(Object recordValue, List<String> keys) {
-    if (recordValue instanceof Map) {
+    if (keys.isEmpty()) {
+      return null;
+    } else if (recordValue instanceof Map) {
       // Schemaless SinkRecord value
       return getField((Map)recordValue, keys);
     } else if (recordValue instanceof Struct) {

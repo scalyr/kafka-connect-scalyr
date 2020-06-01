@@ -87,6 +87,18 @@ public class Event {
     return this;
   }
 
+  /**
+   * Sets/overwrites additionalAttrs Map.
+   * CAUTION: The Map is not cloned for performance/memory reasons.
+   * The caller should not modify the Map after calling this method.
+   * @param additionalAttrs Map should not be modified after setting
+   * @return this Event
+   */
+  public Event setAdditionalAttrs(Map<String, Object> additionalAttrs) {
+    this.additionalAttrs = additionalAttrs;
+    return this;
+  }
+
   public Event addAdditionalAttr(String key, Object value) {
     if (additionalAttrs == null) {
       additionalAttrs = new HashMap<>();

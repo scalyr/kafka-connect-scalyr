@@ -27,6 +27,7 @@ import org.junit.runners.Parameterized;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -65,7 +66,7 @@ public class FieldExtractorTest {
   @Test
   public void testFieldExtract() {
     assertEquals(TestValues.LOGFILE_VALUE, FieldExtractor.getField(recordValue.apply("path", TestValues.LOGFILE_VALUE, 3), Arrays.asList("path3", "path2", "path1")));
-    assertEquals(TestValues.MESSAGE_VALUE, FieldExtractor.getField(recordValue.apply("message", TestValues.MESSAGE_VALUE, 1), Arrays.asList("message1")));
+    assertEquals(TestValues.MESSAGE_VALUE, FieldExtractor.getField(recordValue.apply("message", TestValues.MESSAGE_VALUE, 1), Collections.singletonList("message1")));
     final long time = System.currentTimeMillis();
     assertEquals(time, FieldExtractor.getField(recordValue.apply("time", time, 2), Arrays.asList("time2", "time1")));
 

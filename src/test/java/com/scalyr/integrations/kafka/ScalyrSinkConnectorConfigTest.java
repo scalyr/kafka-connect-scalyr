@@ -16,12 +16,15 @@
 
 package com.scalyr.integrations.kafka;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableSet;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigException;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -60,7 +63,8 @@ public class ScalyrSinkConnectorConfigTest {
       ADD_EVENTS_RETRY_DELAY_MS_CONFIG, TEST_ADD_EVENTS_RETRY_DELAY_MS,
       EVENT_ENRICHMENT_CONFIG, TEST_EVENT_ENRICHMENT,
       BATCH_SEND_SIZE_BYTES_CONFIG, TEST_BATCH_SEND_SIZE,
-      BATCH_SEND_WAIT_MS_CONFIG, TEST_BATCH_SEND_WAIT_MS);
+      BATCH_SEND_WAIT_MS_CONFIG, TEST_BATCH_SEND_WAIT_MS,
+      CUSTOM_APP_EVENT_MAPPING_CONFIG, TestValues.CUSTOM_APP_EVENT_MAPPING_JSON);
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(TEST_SCALYR_SERVER, connectorConfig.getString(SCALYR_SERVER_CONFIG));
@@ -72,6 +76,7 @@ public class ScalyrSinkConnectorConfigTest {
     assertEquals(Arrays.asList(TEST_EVENT_ENRICHMENT.split(",")), connectorConfig.getList(EVENT_ENRICHMENT_CONFIG));
     assertEquals(Integer.valueOf(TEST_BATCH_SEND_SIZE), connectorConfig.getInt(BATCH_SEND_SIZE_BYTES_CONFIG));
     assertEquals(Integer.valueOf(TEST_BATCH_SEND_WAIT_MS), connectorConfig.getInt(BATCH_SEND_WAIT_MS_CONFIG));
+    assertEquals(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON, connectorConfig.getString(CUSTOM_APP_EVENT_MAPPING_CONFIG));
   }
 
   /**
@@ -91,6 +96,7 @@ public class ScalyrSinkConnectorConfigTest {
     assertNull(connectorConfig.getList(EVENT_ENRICHMENT_CONFIG));
     assertEquals(DEFAULT_BATCH_SEND_SIZE_BYTES, connectorConfig.getInt(BATCH_SEND_SIZE_BYTES_CONFIG).intValue());
     assertEquals(DEFAULT_BATCH_SEND_WAIT_MS, connectorConfig.getInt(BATCH_SEND_WAIT_MS_CONFIG).intValue());
+    assertNull(connectorConfig.getString(CUSTOM_APP_EVENT_MAPPING_CONFIG));
   }
 
   /**
@@ -134,6 +140,9 @@ public class ScalyrSinkConnectorConfigTest {
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
   }
 
+  /**
+   * Test config range validators
+   */
   @Test
   public void testInvalidConfigValues() {
     Map<String, String> config = TestUtils.makeMap(
@@ -169,6 +178,75 @@ public class ScalyrSinkConnectorConfigTest {
   }
 
   /**
+   * Test custom app event mapping validator
+   */
+  @Test
+  public void testCustomAppEventMappingValidator() throws IOException {
+    Map<String, String> config = TestUtils.makeMap(
+      SCALYR_API_CONFIG, TEST_API_KEY);
+    ObjectMapper objectMapper = new ObjectMapper();
+
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(
+      Arrays.asList(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON, TestValues.CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON)));
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, "");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, "[]");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, "[{}]");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    // No matcher field
+    Map<String, Object> customAppEventMapping = TestValues.createCustomAppEventMapping(".");
+    customAppEventMapping.remove("matcher");
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    // No event mapping
+    customAppEventMapping = TestValues.createCustomAppEventMapping(".");
+    customAppEventMapping.remove("eventMapping");
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    // Empty matcher
+    customAppEventMapping = TestValues.createCustomAppEventMapping(".");
+    customAppEventMapping.put("matcher", Collections.EMPTY_MAP);
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    // Empty event mapping
+    customAppEventMapping = TestValues.createCustomAppEventMapping(".");
+    customAppEventMapping.put("eventMapping", Collections.EMPTY_MAP);
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    // No message or application attributes defined
+    customAppEventMapping = TestValues.createCustomAppEventMapping(".");
+    customAppEventMapping.put("eventMapping", TestUtils.makeMap("logfile", "/var/log/syslog", "serverHost", "testHost", "parser", "systemLog"));
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    // Invalid fields
+    customAppEventMapping = TestValues.createCustomAppEventMapping(".");
+    customAppEventMapping.put("extraField", "bad");
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+  }
+
+  /**
    * Test ConfigDef contains all the config properties
    */
   @Test
@@ -176,7 +254,7 @@ public class ScalyrSinkConnectorConfigTest {
     final ImmutableSet<String> configs = ImmutableSet.of(SCALYR_SERVER_CONFIG, SCALYR_API_CONFIG,
       COMPRESSION_TYPE_CONFIG, COMPRESSION_LEVEL_CONFIG, ADD_EVENTS_TIMEOUT_MS_CONFIG,
       ADD_EVENTS_RETRY_DELAY_MS_CONFIG, EVENT_ENRICHMENT_CONFIG,
-      BATCH_SEND_SIZE_BYTES_CONFIG, BATCH_SEND_WAIT_MS_CONFIG);
+      BATCH_SEND_SIZE_BYTES_CONFIG, BATCH_SEND_WAIT_MS_CONFIG, CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
     ConfigDef configDef = ScalyrSinkConnectorConfig.configDef();
     assertEquals(configs.size(), configDef.names().size());

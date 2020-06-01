@@ -18,6 +18,7 @@ package com.scalyr.integrations.kafka;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.scalyr.api.internal.ScalyrUtil;
+import com.scalyr.integrations.kafka.mapping.CustomAppEventMapping;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsResponse;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
@@ -30,6 +31,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -112,7 +114,11 @@ public class ScalyrSinkTask extends SinkTask {
       CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG),
         sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
       sleep);
-    this.eventMapper = new EventMapper(parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)));
+
+    this.eventMapper = new EventMapper(
+      parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)),
+      parseCustomAppEventMapping(sinkConfig.getString(ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG)));
+
     log.info("Started ScalyrSinkTask");
   }
 
@@ -266,6 +272,24 @@ public class ScalyrSinkTask extends SinkTask {
     return eventEnrichment.stream()
       .map(pair -> pair.split("=", 2))
       .collect(Collectors.toMap(keyValue -> keyValue[0], keyValue -> keyValue[1]));
+  }
+
+  /**
+   * Parse custom app event mapping config to check for syntax issues
+   * @param customAppEventMappingJson {@link ScalyrSinkConnectorConfig#CUSTOM_APP_EVENT_MAPPING_CONFIG}
+   * @return List<CustomAppEventMapping> of parsed custom app mappings
+   * @throws RuntimeException if parsing error occurs.  Should not occur because config has already validated the custom event mapping JSON.
+   */
+  private List<CustomAppEventMapping> parseCustomAppEventMapping(String customAppEventMappingJson) {
+    if (customAppEventMappingJson == null) {
+      return Collections.EMPTY_LIST;
+    }
+
+    try {
+      return CustomAppEventMapping.parseCustomAppEventMappingConfig(customAppEventMappingJson);
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   /**

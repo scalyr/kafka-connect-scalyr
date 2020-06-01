@@ -16,12 +16,15 @@
 
 package com.scalyr.integrations.kafka;
 
+import com.google.common.base.Strings;
+import com.scalyr.integrations.kafka.mapping.CustomAppEventMapping;
 import org.apache.kafka.common.config.AbstractConfig;
 import org.apache.kafka.common.config.ConfigDef;
 import org.apache.kafka.common.config.ConfigDef.Type;
 import org.apache.kafka.common.config.ConfigDef.Importance;
 import org.apache.kafka.common.config.ConfigException;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
@@ -60,6 +63,11 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
   private static final String BATCH_SEND_WAIT_MS_DOC = "Maximum time to wait in millisecs between batch sends."
     + "  This ensures events are sent to Scalyr in a timely manner on systems under light load where "
     + BATCH_SEND_SIZE_BYTES_CONFIG + " may not be reached for longer periods of time.";
+  public static final String CUSTOM_APP_EVENT_MAPPING_CONFIG = "custom_app_event_mapping";
+  private static final String CUSTOM_APP_EVENT_MAPPING_DOC = "JSON config describing how to map custom application nested Kafka messages to Scalyr events." +
+    "  Multiple custom application event mappings can be specified in a JSON list.  Example config JSON:\n"
+    + "[{\"matcher\": { \"attribute\": \"app.name\", \"value\": \"customApp\"},\n" +
+    " \"eventMapping\": { \"message\": \"message\", \"logfile\": \"log.path\", \"serverHost\": \"host.hostname\", \"parser\": \"fields.parser\", \"version\": \"app.version\"} }]";
 
   public ScalyrSinkConnectorConfig(Map<String, String> parsedConfig) {
     super(configDef(), parsedConfig);
@@ -76,7 +84,8 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         .define(ADD_EVENTS_TIMEOUT_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_TIMEOUT_MS, ConfigDef.Range.atLeast(2000), Importance.LOW, ADD_EVENTS_TIMEOUT_MS_DOC)
         .define(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, Type.INT, DEFAULT_ADD_EVENTS_RETRY_DELAY_MS, ConfigDef.Range.atLeast(100), Importance.LOW, ADD_EVENTS_RETRY_DELAY_MS_DOC)
         .define(BATCH_SEND_SIZE_BYTES_CONFIG, Type.INT, DEFAULT_BATCH_SEND_SIZE_BYTES, ConfigDef.Range.between(500_000, 6_000_000), Importance.LOW, BATCH_SEND_SIZE_BYTES_DOC)
-        .define(BATCH_SEND_WAIT_MS_CONFIG, Type.INT, DEFAULT_BATCH_SEND_WAIT_MS, ConfigDef.Range.atLeast(1000), Importance.LOW, BATCH_SEND_WAIT_MS_DOC);
+        .define(BATCH_SEND_WAIT_MS_CONFIG, Type.INT, DEFAULT_BATCH_SEND_WAIT_MS, ConfigDef.Range.atLeast(1000), Importance.LOW, BATCH_SEND_WAIT_MS_DOC)
+        .define(CUSTOM_APP_EVENT_MAPPING_CONFIG, Type.STRING, null, customAppEventMappingValidator, Importance.MEDIUM, CUSTOM_APP_EVENT_MAPPING_DOC);
   }
 
 
@@ -108,6 +117,34 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
       if (keyValue.indexOf(' ') > 0) {
         throw new ConfigException("Enrichment value cannot have spaces");
       }
+    }
+  };
+
+  /**
+   * Validator for CUSTOM_APP_EVENT_MAPPING_CONFIG.
+   * Verifies custom app event mapping JSON is valid and contains required fields.
+   */
+  private static final ConfigDef.Validator customAppEventMappingValidator = (name, value) -> {
+    if (value == null) {
+      return;
+    }
+
+    try {
+      List<CustomAppEventMapping> customAppEventMappings = CustomAppEventMapping.parseCustomAppEventMappingConfig((String) value);
+      if (customAppEventMappings.isEmpty()) {
+        throw new ConfigException("No custom event mappings are defined");
+      }
+      for (CustomAppEventMapping mapping : customAppEventMappings) {
+        if (mapping.getMatcherFields().isEmpty() || Strings.isNullOrEmpty(mapping.getMatcherValue())) {
+          throw new ConfigException("Custom event application mapping matcher not defined");
+        }
+
+        if (mapping.getMessageFields().isEmpty() && mapping.getAdditionalAttrFields().isEmpty()) {
+          throw new ConfigException("Either message field or application attribute fields must be defined");
+        }
+      }
+    } catch (IOException | IllegalArgumentException e) {
+      throw new ConfigException("Invalid custom application event mapping JSON", e);
     }
   };
 }

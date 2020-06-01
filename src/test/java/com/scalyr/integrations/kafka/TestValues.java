@@ -18,7 +18,12 @@ package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.collect.ImmutableList;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -31,6 +36,11 @@ public abstract class TestValues {
   public static final String LOGFILE_VALUE = "/var/log/syslog";
   public static final String SERVER_VALUE = "server";
   public static final String PARSER_VALUE = "systemLogPST";
+  public static final String CUSTOM_APP_NAME = "customApp";
+  public static final String CUSTOM_APP_VERSION = "1.5.0";
+  public static final List<String> ACTIVITY_TYPE_VALUE = ImmutableList.of("web-access");
+  public static final int SEVERITY_VALUE = 3;
+
   public static final String API_KEY_VALUE = "abc123";
   public static final int ADD_EVENTS_TIMEOUT_MS = 20_000;
   public static final int ADD_EVENTS_RETRY_DELAY_MS = 500;
@@ -40,9 +50,13 @@ public abstract class TestValues {
   public static final Map<String, String> ENRICHMENT_VALUE_MAP = TestUtils.makeMap("env", "test", "org", "Scalyr");
   public static final int MIN_BATCH_SEND_SIZE_BYTES = 500_000;
   public static final int MIN_BATCH_EVENTS = (MIN_BATCH_SEND_SIZE_BYTES / MESSAGE_VALUE.length()) + 1;
+
   public static final String ADD_EVENTS_RESPONSE_SUCCESS;
   public static final String ADD_EVENTS_RESPONSE_SERVER_BUSY;
   public static final String ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM;
+  public static final String CUSTOM_APP_EVENT_MAPPING_JSON;
+  public static final String CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON;
+
 
   static {
     // AddEventsResponse response messages
@@ -55,9 +69,38 @@ public abstract class TestValues {
       ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM = objectMapper.writeValueAsString(new AddEventsClient.AddEventsResponse()
         .setStatus("error/client/badParam").setMessage("Maybe caused by bad api key"));
 
+      CUSTOM_APP_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping(".")));
+      CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping("_")));
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
+  }
+
+  /**
+   * Create test custom app event mapping as data structure that can be serialized to JSON.
+   */
+  public static Map<String, Object> createCustomAppEventMapping(String delimiter) {
+    Map<String, Object> customAppEventMapper = new HashMap<>();
+    customAppEventMapper.put("matcher", TestUtils.makeMap(
+      "attribute", "application" + delimiter + "name",
+      "value", CUSTOM_APP_NAME));
+
+    customAppEventMapper.put("eventMapping", TestUtils.makeMap(
+      "message", "message",
+      "logfile", "application" + delimiter + "name",
+      "serverHost", "host" + delimiter + "hostname",
+      "parser", "scalyr" + delimiter + "parser",
+      "version", "application" + delimiter + "version",
+      "application", "application" + delimiter + "name",
+      "failed", "failed",
+      "activityType", "activityType"
+    ));
+
+    if (!delimiter.equals(".")) {
+      customAppEventMapper.put("delimiter", delimiter);
+    }
+
+    return customAppEventMapper;
   }
 
 }
