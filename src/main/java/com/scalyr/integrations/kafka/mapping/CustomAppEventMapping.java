@@ -141,6 +141,14 @@ public class CustomAppEventMapping {
     public void setValue(String value) {
       this.value = value;
     }
+
+    @Override
+    public String toString() {
+      return "Matcher{" +
+        "attribute='" + attribute + '\'' +
+        ", value='" + value + '\'' +
+        '}';
+    }
   }
 
   /**
@@ -152,5 +160,14 @@ public class CustomAppEventMapping {
   public static List<CustomAppEventMapping> parseCustomAppEventMappingConfig(String customAppConfig) throws IOException {
     ObjectMapper objectMapper = new ObjectMapper();
     return objectMapper.readValue(customAppConfig, objectMapper.getTypeFactory().constructCollectionType(List.class, CustomAppEventMapping.class));
+  }
+
+  @Override
+  public String toString() {
+    return "CustomAppEventMapping{" +
+      "matcher=" + matcher +
+      ", eventMapping=" + eventMapping +
+      ", delimiter='" + delimiter + '\'' +
+      '}';
   }
 }

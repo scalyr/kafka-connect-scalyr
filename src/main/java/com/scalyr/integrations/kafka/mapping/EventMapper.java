@@ -18,8 +18,11 @@ package com.scalyr.integrations.kafka.mapping;
 
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.Event;
+import com.scalyr.integrations.kafka.ScalyrSinkConnector;
 import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.util.List;
 import java.util.Map;
@@ -34,7 +37,7 @@ import java.util.stream.Stream;
  * MessageMapper.
  */
 public class EventMapper {
-
+  private static final Logger log = LoggerFactory.getLogger(ScalyrSinkConnector.class);
   private static final List<MessageMapper> messageMappers = Stream.of(new FilebeatMessageMapper()).collect(Collectors.toList());
   private final Map<String, String> enrichmentAttrs;
 
@@ -44,6 +47,7 @@ public class EventMapper {
   public EventMapper(Map<String, String> enrichmentAttrs, List<CustomAppEventMapping> customAppEventMappings) {
     this.enrichmentAttrs = enrichmentAttrs;
     if (customAppEventMappings != null) {
+      log.info("Adding custom event mappers {}", customAppEventMappings);
       customAppEventMappings.forEach(customAppEventMapping -> messageMappers.add(new CustomAppMessageMapper(customAppEventMapping)));
     }
   }

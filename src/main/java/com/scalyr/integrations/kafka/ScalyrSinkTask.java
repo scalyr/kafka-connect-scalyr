@@ -119,7 +119,7 @@ public class ScalyrSinkTask extends SinkTask {
       parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)),
       parseCustomAppEventMapping(sinkConfig.getString(ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG)));
 
-    log.info("Started ScalyrSinkTask");
+    log.info("Started ScalyrSinkTask with config {}", configProps);
   }
 
   /**
