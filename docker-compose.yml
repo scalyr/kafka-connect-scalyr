@@ -90,3 +90,11 @@ services:
     command: /bin/flog --loop --format apache_combined --delay 0.02
     depends_on:
       - filebeat
+
+  custom_app:
+    build: src/test/SystemTest/docker/custom-app
+    depends_on:
+      - kafka
+      - kafka-setup
+    environment:
+      KAFKA_SERVERS: kafka:29092

@@ -26,7 +26,8 @@ docker-compose ps
 .circleci/configure_scalyr_connector.sh
  
 # Verify logs are in Scalyr
-python .circleci/verify_scalyr_events.py
+Filebeat: python .circleci/verify_scalyr_events.py method='*'
+Custom app: python .circleci/verify_scalyr_events.py app=\'customApp\'
 
 # Shutdown the Docker test env
 docker-compose down

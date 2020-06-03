@@ -21,7 +21,8 @@ from six.moves.urllib.parse import quote_plus, urlencode
 
 class ScalyrRequest:
     """
-    Abstraction to create scalyr API requests.
+    Abstraction to create scalyr API requests
+    TODO: This should be moved to a common test library
     """
 
     def __init__(self, server_address, read_api_key, max_count=1000, start_time=None):
@@ -69,7 +70,7 @@ class ScalyrRequest:
 
         return data
 
-def check_scalyr_events():
+def check_scalyr_events(additionalFilter):
   """
   Check if Kafka Scalyr connector events are in Scalyr with exponential delay retries.
   return true if they are
@@ -84,6 +85,9 @@ def check_scalyr_events():
   request = ScalyrRequest(scalyr_server, os.environ['READ_API_KEY'], max_events, "10 min")
   filter = "origin='kafka-connect-build-" + os.environ['CIRCLE_BUILD_NUM'] + "'"
   request.add_filter(filter)
+  if additionalFilter is not None:
+    request.add_filter(additionalFilter)
+
 
   # Query Scalyr events
   count = 0
@@ -101,5 +105,7 @@ def check_scalyr_events():
   return matches == max_events
 
 # Main
-success = check_scalyr_events()
-sys.exit(0 if success else 1)
+if __name__ == "__main__":
+    filter = sys.argv[1] if len(sys.argv) > 1 else None
+    success = check_scalyr_events(filter)
+    sys.exit(0 if success else 1)
