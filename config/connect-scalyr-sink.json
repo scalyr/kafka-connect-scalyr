@@ -1,0 +1,12 @@
+{
+  "name": "scalyr-sink-connector",
+  "config": {
+    "connector.class": "com.scalyr.integrations.kafka.ScalyrSinkConnector",
+    "value.converter": "org.apache.kafka.connect.json.JsonConverter",
+    "value.converter.schemas.enable":"false",
+    "tasks.max": "3",
+    "topics": "logs",
+    "api_key": "<log write api key from https://app.scalyr.com/keys>",
+    "event_enrichment": "key1=value1,key2=value2"
+  }
+}
