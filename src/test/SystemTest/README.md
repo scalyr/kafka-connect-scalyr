@@ -5,6 +5,7 @@ Docker is used to setup a multi-container System test environment with the follo
 3. Kafka Connect with Scalyr Sink Connector installed
 4. Filebeat configured to send logs from flog containers to Kafka
 5. flog to generate fake log events
+6. Simulated custom application writing log events to a Kafka topic
 
 System tests are automatically run by Circle CI.
 
@@ -26,7 +27,8 @@ docker-compose ps
 .circleci/configure_scalyr_connector.sh
  
 # Verify logs are in Scalyr
-python .circleci/verify_scalyr_events.py
+Filebeat: python .circleci/verify_scalyr_events.py method='*'
+Custom app: python .circleci/verify_scalyr_events.py app=\'customApp\'
 
 # Shutdown the Docker test env
 docker-compose down

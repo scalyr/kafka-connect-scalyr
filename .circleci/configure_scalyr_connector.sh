@@ -31,6 +31,7 @@ function create_connector_config {
     "value.converter.schemas.enable":"false",
     "tasks.max": "3",
     "topics": "logs",
+    "custom_app_event_mapping":"[{\"matcher\": {\"attribute\": \"app\",\"value\": \"customApp\"}, \"eventMapping\": {\"id\":\"id\", \"app\":\"app\", \"parser\":\"parser_name\",\"version\":\"metadata.@version\",\"forwarder\":\"forwarder\", \"timestamp\":\"@timestamp\", \"activity_type\":\"activity_type\", \"outcome\":\"outcome\", \"src_ip\":\"src_ip\", \"src_country\":\"src_country\", \"dest_ip\":\"dest_ip\", \"dest_country\":\"dest_country\", \"source_component\":\"source\", \"domain\":\"domain\", \"invalid_field\":\"invalid_field\", \"src_port\":\"src_port\", \"dest_port\":\"dest_port\", \"categories\":\"category.categories\", \"subcategory\":\"category.subcategory\", \"message\":\"message\", \"device_type\":\"device_type\", \"username\":\"username\", \"is_ransomware_src_ip\":\"threat.is_ransomware_src_ip\", \"is_ransomware_dest_ip\":\"threat.is_ransomware_dest_ip\", \"is_threat_src_ip\":\"threat.is_threat_src_ip\", \"is_threat_dest_ip\":\"threat.is_threat_dest_ip\", \"is_phishing_domain\":\"threat.is_phishing_domain\"}}]",
 EOF
   echo "    \"api_key\": \"$WRITE_API_KEY\"," >> "$1"
   echo "    \"event_enrichment\": \"origin=kafka-connect-build-$CIRCLE_BUILD_NUM\"" >> "$1"

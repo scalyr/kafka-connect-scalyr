@@ -162,7 +162,7 @@ public class Event {
 
     if (getAdditionalAttrs() != null) {
       size += getAdditionalAttrs().entrySet().stream()
-        .mapToInt(entry -> entry.getKey().length() + entry.getValue().toString().length()).sum();
+        .mapToInt(entry -> entry.getKey().length() + (entry.getValue() == null ? 0 : entry.getValue().toString().length())).sum();
     }
     return size;
   }
