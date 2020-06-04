@@ -70,7 +70,7 @@ class ScalyrRequest:
 
         return data
 
-def check_scalyr_events(additionalFilter):
+def check_scalyr_events(additional_filter):
   """
   Check if Kafka Scalyr connector events are in Scalyr with exponential delay retries.
   return true if they are
@@ -85,8 +85,8 @@ def check_scalyr_events(additionalFilter):
   request = ScalyrRequest(scalyr_server, os.environ['READ_API_KEY'], max_events, "10 min")
   filter = "origin='kafka-connect-build-" + os.environ['CIRCLE_BUILD_NUM'] + "'"
   request.add_filter(filter)
-  if additionalFilter is not None:
-    request.add_filter(additionalFilter)
+  if additional_filter is not None:
+    request.add_filter(additional_filter)
 
 
   # Query Scalyr events
@@ -101,8 +101,33 @@ def check_scalyr_events(additionalFilter):
     matches = len(result['matches'])
     count += 1
 
+  if matches > 0:
+    has_expected_attrs = check_event_attrs(result['matches'][0]['attributes'])
+
   print("Query returned {0} Scalyr events".format(matches))
-  return matches == max_events
+  return matches == max_events and has_expected_attrs
+
+def check_event_attrs(attrs):
+    """
+    Verify the event has the expected attributes for Flog Apache logs and custom app logs
+    """
+    if 'app' in attrs and attrs['app'] == 'customApp':
+        # custom app
+        expected_attrs = ['activity_type', 'categories', 'dest_country', 'dest_ip', 'dest_port', 'device_type', 'domain',
+        'forwarder', 'id', 'is_phishing_domain', 'is_ransomware_dest_ip', 'is_ransomware_src_ip', 'is_threat_dest_ip',
+        'is_threat_src_ip', 'outcome', 'parser', 'source_component', 'src_country', 'src_ip', 'src_port',
+        'subcategory', 'username', 'version']
+    elif 'method' in attrs:
+        # flog apache log
+        expected_attrs = ['agent', 'authUser', 'bytes', 'ip', 'protocol', 'referrer', 'status', 'uriPath', 'user']
+    else:
+        return false
+
+    has_expected_attrs = all (k in attrs for k in expected_attrs)
+    if not has_expected_attrs:
+        print("Did not get expected attributes {0}.  Query returned attributes {1}".format(expected_attrs, attrs))
+
+    return has_expected_attrs
 
 # Main
 if __name__ == "__main__":
