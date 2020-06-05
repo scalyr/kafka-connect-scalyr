@@ -164,6 +164,59 @@
                     </execution>
                 </executions>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-checkstyle-plugin</artifactId>
+                <version>3.0.0</version>
+                <configuration>
+                    <logViolationsToConsole>true</logViolationsToConsole>
+                    <checkstyleRules>
+                        <module name="Checker">
+                            <property name="fileExtensions" value="java"/>
+                            <module name="NewlineAtEndOfFile"/>
+                            <module name="FileTabCharacter"/>
+                            <module name="RegexpSingleline">
+                                <property name="format" value="\s+$"/>
+                                <property name="minimum" value="0"/>
+                                <property name="maximum" value="0"/>
+                                <property name="message" value="Line has trailing spaces."/>
+                            </module>
+                            <module name="TreeWalker">
+                                <module name="OuterTypeFilename"/>
+                                <module name="LineLength">
+                                    <!-- The style guide suggests 150 columns, but this is a soft limit,
+                                    thus making automated enforcement infeasible.
+                                    -->
+                                    <property name="max" value="300"/>
+                                    <property name="ignorePattern"
+                                              value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
+                                </module>
+                                <module name="OneTopLevelClass"/>
+                                <module name="RedundantImport"/>
+                                <module name="UnusedImports"/>
+                                <module name="NoLineWrap"/>
+                                <module name="EmptyBlock">
+                                    <property name="option" value="TEXT"/>
+                                    <property name="tokens"
+                                              value="LITERAL_TRY, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_SWITCH"/>
+                                </module>
+                                <module name="ArrayTypeStyle"/>
+                                <module name="NoFinalizer"/>
+                                <module name="ModifierOrder"/>
+                            </module>
+                        </module>
+                    </checkstyleRules>
+                </configuration>
+                <executions>
+                    <execution>
+                        <id>validate</id>
+                        <phase>validate</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
         <resources>
             <resource>
