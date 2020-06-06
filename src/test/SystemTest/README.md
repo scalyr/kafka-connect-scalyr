@@ -1,11 +1,14 @@
 # System Test Setup
 Docker is used to setup a multi-container System test environment with the following containers:
 1. Zookeeper
-2. Kafka with topics for logs and Kafka Connect running in distributed mode
-3. Kafka Connect with Scalyr Sink Connector installed
+2. Kafka with topics for logs
+3. Kafka Connect running in Distributed Mode with Scalyr Sink Connector installed
 4. Filebeat configured to send logs from flog containers to Kafka
-5. flog to generate fake log events
+5. flog to send fake log events to Filebeat
 6. Simulated custom application writing log events to a Kafka topic
+7. Fluentd configured to send logs to Kafka
+8. flog to send fake log events to Fluentd using Docker Fluentd logging driver 
+9. Fluent Bit to send cpu usage to Kafka
 
 System tests are automatically run by Circle CI.
 
