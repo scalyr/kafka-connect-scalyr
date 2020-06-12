@@ -12,6 +12,9 @@
     <properties>
         <kafka.version>2.4.1</kafka.version>
         <junit.version>4.12</junit.version>
+        <sonar.projectKey>scalyr_kafka-connect-scalyr</sonar.projectKey>
+        <sonar.organization>scalyr</sonar.organization>
+        <sonar.host.url>https://sonarcloud.io</sonar.host.url>
     </properties>
 
     <dependencies>
