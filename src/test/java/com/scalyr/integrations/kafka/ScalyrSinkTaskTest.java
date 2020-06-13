@@ -35,6 +35,7 @@ import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -306,6 +307,24 @@ public class ScalyrSinkTaskTest {
     assertEquals(1, server.getRequestCount());
 
     verifyRecords(server, records);
+  }
+
+  /**
+   * Verify sink records that do not match an event mapper work ok.
+   */
+  @Test
+  public void testSinkRecordsNotMatchingEventMapper() {
+    final int numRecords = 100;
+
+    MockWebServer server = new MockWebServer();
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+
+    startTask(server);
+
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, numRecords, Collections.EMPTY_MAP);
+    scalyrSinkTask.put(records);
+    scalyrSinkTask.flush(new HashMap<>());
+    assertEquals(0, server.getRequestCount());  // Doesn't send anything b/c records did not match an event mapper
   }
 
   /**

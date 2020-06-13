@@ -16,10 +16,9 @@
 
 package com.scalyr.integrations.kafka.mapping;
 
+import com.google.common.util.concurrent.RateLimiter;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.Event;
-import com.scalyr.integrations.kafka.ScalyrSinkConnector;
-import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -37,9 +36,10 @@ import java.util.stream.Stream;
  * MessageMapper.
  */
 public class EventMapper {
-  private static final Logger log = LoggerFactory.getLogger(ScalyrSinkConnector.class);
+  private static final Logger log = LoggerFactory.getLogger(EventMapper.class);
   private static final List<MessageMapper> messageMappers = Stream.of(new FilebeatMessageMapper()).collect(Collectors.toList());
   private final Map<String, String> enrichmentAttrs;
+  private static final RateLimiter noEventMapperLogRateLimiter = RateLimiter.create(1.0/30);  // 1 permit every 30 seconds to not log
 
   /**
    * @param enrichmentAttrs Map<String, String> of enrichment key/value pairs
@@ -57,7 +57,13 @@ public class EventMapper {
    * to map the Event values from the SinkRecord value.
    */
   public Event createEvent(SinkRecord record) {
-    MessageMapper messageMapper = getMessageMapper(record);
+    MessageMapper messageMapper = getMessageMapper(record).orElse(null);
+    if (messageMapper == null) {
+      if (noEventMapperLogRateLimiter.tryAcquire()) {
+        log.info("No event mapper matches sink record value {}", record.value());
+      }
+      return null;
+    }
 
     // Supply default for serverHost if null without creating unneeded default Strings
     Supplier<String> serverHost = () -> {
@@ -84,13 +90,9 @@ public class EventMapper {
   /**
    * @return MessageMapper for the SinkRecord value
    */
-  private MessageMapper getMessageMapper(SinkRecord sinkRecord) {
-    Optional<MessageMapper> messageMapper = messageMappers.stream()
+  private Optional<MessageMapper> getMessageMapper(SinkRecord sinkRecord) {
+    return messageMappers.stream()
       .filter(mapper -> mapper.matches(sinkRecord))
       .findFirst();
-
-    messageMapper.orElseThrow(() -> new DataException("Unsupported message type"));
-
-    return messageMapper.get();
   }
 }

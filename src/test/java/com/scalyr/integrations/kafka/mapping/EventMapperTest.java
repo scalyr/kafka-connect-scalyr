@@ -40,6 +40,7 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 
 /**
  * Test for EventMapper
@@ -114,10 +115,10 @@ public class EventMapperTest {
   /**
    * Test no {@link MessageMapper} for the SinkRecord value
    */
-  @Test(expected = DataException.class)
+  @Test
   public void noMessageMapperTest() {
     SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, new HashMap<>(), offset.getAndIncrement());
-    eventMapper.createEvent(sinkRecord);
+    assertNull(eventMapper.createEvent(sinkRecord));
   }
 
   /**
