@@ -20,10 +20,6 @@ jobs: # a collection of steps
 
       - checkout # check out source code to working directory
 
-      - run:
-          name: Analyze on SonarCloud
-          command: mvn verify sonar:sonar
-
       - restore_cache: # restore the saved cache after the first run or if `pom.xml` has changed
           # Read about caching dependencies: https://circleci.com/docs/2.0/caching/
           key: circleci-kafka-connect-scalyr-{{ checksum "pom.xml" }}
@@ -35,7 +31,11 @@ jobs: # a collection of steps
             - ~/.m2
           key: circleci-kafka-connect-scalyr-{{ checksum "pom.xml" }}
 
-      - run: mvn package # run the actual tests
+      - run: mvn verify # build and run tests
+
+      - run:
+          name: Analyze on SonarCloud
+          command: mvn verify sonar:sonar
 
       - setup_remote_docker
 
