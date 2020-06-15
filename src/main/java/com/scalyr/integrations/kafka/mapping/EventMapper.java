@@ -60,7 +60,7 @@ public class EventMapper {
     MessageMapper messageMapper = getMessageMapper(record).orElse(null);
     if (messageMapper == null) {
       if (noEventMapperLogRateLimiter.tryAcquire()) {
-        log.info("No event mapper matches sink record value {}", record.value());
+        log.warn("No event mapper matches sink record value {}", record.value());
       }
       return null;
     }
