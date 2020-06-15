@@ -31,7 +31,11 @@ jobs: # a collection of steps
             - ~/.m2
           key: circleci-kafka-connect-scalyr-{{ checksum "pom.xml" }}
 
-      - run: mvn package # run the actual tests
+      - run: mvn verify # build and run tests
+
+      - run:
+          name: Analyze on SonarCloud
+          command: mvn verify sonar:sonar
 
       - setup_remote_docker
 

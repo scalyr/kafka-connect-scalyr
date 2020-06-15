@@ -1,6 +1,7 @@
 # Kafka Connect Scalyr Sink Plugin
 
 [![CircleCI](https://circleci.com/gh/scalyr/kafka-connect-scalyr.svg?style=svg)](https://circleci.com/gh/scalyr/kafka-connect-scalyr)
+[![Quality Gate Status](https://sonarcloud.io/api/project_badges/measure?project=scalyr_kafka-connect-scalyr&metric=alert_status)](https://sonarcloud.io/dashboard?id=scalyr_kafka-connect-scalyr)
 
 This repository holds the source code for the Kafka Connect Scalyr Sink,
 which is a Kafka Connect Sink Connector that allows streaming log messages from a Kafka topic to Scalyr.
