@@ -34,6 +34,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -192,7 +193,7 @@ public class TestUtils {
     /**
      * Sleep lambda should be called in place of actual sleep
      */
-    public final Consumer<Long> sleep = (timeMs) -> {
+    public final LongConsumer sleep = (timeMs) -> {
       sleepTime.addAndGet(timeMs);
       ScalyrUtil.advanceCustomTimeMs(timeMs);
     };

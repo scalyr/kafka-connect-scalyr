@@ -41,6 +41,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -56,7 +57,7 @@ public class ScalyrSinkTask extends SinkTask {
   private int addEventsTimeoutMs;
 
   /** Mockable sleep implementation for testing.  Always null when not in test. */
-  @Nullable private final Consumer<Long> sleep;
+  @Nullable private final LongConsumer sleep;
 
   private CompletableFuture<AddEventsResponse> pendingAddEvents;
   private volatile ConnectException lastError;
@@ -87,7 +88,7 @@ public class ScalyrSinkTask extends SinkTask {
    * Only used for testing to provide mockable sleep implementation.
    * @param sleep Mock sleep implementation
    */
-  @VisibleForTesting ScalyrSinkTask (@Nullable Consumer<Long> sleep) {
+  @VisibleForTesting ScalyrSinkTask (@Nullable LongConsumer sleep) {
     this.sleep = sleep;
   }
 
