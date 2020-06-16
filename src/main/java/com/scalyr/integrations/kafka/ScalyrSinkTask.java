@@ -165,7 +165,7 @@ public class ScalyrSinkTask extends SinkTask {
     PerfStats perfStats = new PerfStats(log);
     perfStats.recordEvents(eventBuffer);
     pendingAddEvents = addEventsClient.log(eventBuffer.getEvents(), pendingAddEvents).whenComplete(this::processResponse);
-    pendingAddEvents.thenRun(perfStats::close);
+    pendingAddEvents.thenRun(perfStats::log);
     eventBuffer.clear();
     lastBatchSendTimeMs = ScalyrUtil.currentTimeMillis();
   }
@@ -340,7 +340,7 @@ public class ScalyrSinkTask extends SinkTask {
   /**
    * Captures performance stats when debug log is enabled.
    */
-  private static class PerfStats implements AutoCloseable {
+  private static class PerfStats {
     private final Logger log;
     private final long startTime = System.currentTimeMillis();
     private int numRecords;
@@ -358,10 +358,9 @@ public class ScalyrSinkTask extends SinkTask {
     }
 
     /**
-     * Close should be called when the addEvents call completes to log the performance stats.
+     * log should be called when the addEvents call completes to log the performance stats.
      */
-    @Override
-    public void close() {
+    public void log() {
       if (log.isDebugEnabled()) {
         long timeMs = System.currentTimeMillis() - startTime;
         log.debug("Processed numRecords {}, estimated serialized bytes {} in {} millisecs, {} MB/sec",
