@@ -61,8 +61,10 @@ jobs: # a collection of steps
             .circleci/configure_scalyr_connector.sh
 
             # Verify logs are in Scalyr
-            python .circleci/verify_scalyr_events.py method='*'
+            python .circleci/verify_scalyr_events.py dataset=\'accesslog\'
             python .circleci/verify_scalyr_events.py app=\'customApp\'
+            python .circleci/verify_scalyr_events.py tag=\'fluentd-apache\'
+            python .circleci/verify_scalyr_events.py tag=\'fluentbit-cpu\' 50
 
       - store_test_results: # uploads the test metadata from the `target/surefire-reports` directory so that it can show up in the CircleCI dashboard. 
           # Upload test results for display in Test Summary: https://circleci.com/docs/2.0/collect-test-data/

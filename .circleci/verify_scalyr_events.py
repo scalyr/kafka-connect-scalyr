@@ -70,19 +70,18 @@ class ScalyrRequest:
 
         return data
 
-def check_scalyr_events(additional_filter):
+def check_scalyr_events(additional_filter, expected_num_events):
   """
   Check if Kafka Scalyr connector events are in Scalyr with exponential delay retries.
   return true if they are
   """
   scalyr_server = "app.scalyr.com"
-  max_events = 5000
   max_tries = 10
   matches = 0
   retry_delay_sec = 1
 
   # Scalyr log query request
-  request = ScalyrRequest(scalyr_server, os.environ['READ_API_KEY'], max_events, "10 min")
+  request = ScalyrRequest(scalyr_server, os.environ['READ_API_KEY'], expected_num_events, "10 min")
   filter = "origin='kafka-connect-build-" + os.environ['CIRCLE_BUILD_NUM'] + "'"
   request.add_filter(filter)
   if additional_filter is not None:
@@ -91,7 +90,7 @@ def check_scalyr_events(additional_filter):
 
   # Query Scalyr events
   count = 0
-  while (count < max_tries and matches < max_events):
+  while (count < max_tries and matches < expected_num_events):
     # Exponential delay on retries
     if count > 0:
         time.sleep(retry_delay_sec)
@@ -105,7 +104,10 @@ def check_scalyr_events(additional_filter):
     has_expected_attrs = check_event_attrs(result['matches'][0]['attributes'])
 
   print("Query returned {0} Scalyr events".format(matches))
-  return matches == max_events and has_expected_attrs
+  if not has_expected_attrs:
+    print "Event attributes incorrect!"
+
+  return matches == expected_num_events and has_expected_attrs
 
 def check_event_attrs(attrs):
     """
@@ -117,11 +119,18 @@ def check_event_attrs(attrs):
         'forwarder', 'id', 'is_phishing_domain', 'is_ransomware_dest_ip', 'is_ransomware_src_ip', 'is_threat_dest_ip',
         'is_threat_src_ip', 'outcome', 'parser', 'source_component', 'src_country', 'src_ip', 'src_port',
         'subcategory', 'username', 'version']
-    elif 'method' in attrs:
-        # flog apache log
+    elif 'dataset' in attrs and attrs['dataset'] == 'accesslog':
+        # filebeats flog apache log
         expected_attrs = ['agent', 'authUser', 'bytes', 'ip', 'protocol', 'referrer', 'status', 'uriPath', 'user']
+    elif 'tag' in attrs and attrs['tag'] == 'fluentd-apache':
+        # fluentd flog apache log
+        expected_attrs = ['agent', 'code', 'host', 'method', 'path', 'size', 'container_id', 'container_name']
+    elif 'tag' in attrs and attrs['tag'] == 'fluentbit-cpu':
+        # fluentbit cpu
+        expected_attrs = ['cpu_p', 'system_p', 'user_p', 'cpu0.p_cpu', 'cpu0.p_system', 'cpu0.p_user']
     else:
-        return false
+        print("Unexpected event.  Event did not match expected event types.  {0}".format(attrs))
+        return False
 
     has_expected_attrs = all (k in attrs for k in expected_attrs)
     if not has_expected_attrs:
@@ -131,6 +140,8 @@ def check_event_attrs(attrs):
 
 # Main
 if __name__ == "__main__":
+    MAX_EVENTS = 5000
     filter = sys.argv[1] if len(sys.argv) > 1 else None
-    success = check_scalyr_events(filter)
+    expected_num_events = min(int(sys.argv[2]), MAX_EVENTS) if len(sys.argv) > 2 else MAX_EVENTS
+    success = check_scalyr_events(filter, expected_num_events)
     sys.exit(0 if success else 1)

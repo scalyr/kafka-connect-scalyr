@@ -148,7 +148,8 @@ public class ScalyrSinkTask extends SinkTask {
     }
 
     Stream<Event> events = records.stream()
-      .map(eventMapper::createEvent);
+      .map(eventMapper::createEvent)
+      .filter(event -> event != null);
 
     eventBuffer.addEvents(events);
     if (eventBuffer.estimatedSerializedBytes() >= batchSendSizeBytes
