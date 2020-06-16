@@ -31,7 +31,7 @@ public interface MessageMapper {
   String getParser(SinkRecord record);
   String getMessage(SinkRecord record);
   default Map<String, Object> getAdditionalAttrs(SinkRecord record) {
-    return Collections.EMPTY_MAP;
+    return Collections.emptyMap();
   }
 
   /**

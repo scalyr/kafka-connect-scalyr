@@ -37,10 +37,11 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -56,7 +57,7 @@ public class ScalyrSinkTask extends SinkTask {
   private int addEventsTimeoutMs;
 
   /** Mockable sleep implementation for testing.  Always null when not in test. */
-  @Nullable private final Consumer<Long> sleep;
+  @Nullable private final LongConsumer sleep;
 
   private CompletableFuture<AddEventsResponse> pendingAddEvents;
   private volatile ConnectException lastError;
@@ -87,7 +88,7 @@ public class ScalyrSinkTask extends SinkTask {
    * Only used for testing to provide mockable sleep implementation.
    * @param sleep Mock sleep implementation
    */
-  @VisibleForTesting ScalyrSinkTask (@Nullable Consumer<Long> sleep) {
+  @VisibleForTesting ScalyrSinkTask (@Nullable LongConsumer sleep) {
     this.sleep = sleep;
   }
 
@@ -149,7 +150,7 @@ public class ScalyrSinkTask extends SinkTask {
 
     Stream<Event> events = records.stream()
       .map(eventMapper::createEvent)
-      .filter(event -> event != null);
+      .filter(Objects::nonNull);
 
     eventBuffer.addEvents(events);
     if (eventBuffer.estimatedSerializedBytes() >= batchSendSizeBytes
@@ -165,7 +166,7 @@ public class ScalyrSinkTask extends SinkTask {
     PerfStats perfStats = new PerfStats(log);
     perfStats.recordEvents(eventBuffer);
     pendingAddEvents = addEventsClient.log(eventBuffer.getEvents(), pendingAddEvents).whenComplete(this::processResponse);
-    pendingAddEvents.thenRun(perfStats::close);
+    pendingAddEvents.thenRun(perfStats::log);
     eventBuffer.clear();
     lastBatchSendTimeMs = ScalyrUtil.currentTimeMillis();
   }
@@ -267,7 +268,7 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @VisibleForTesting Map<String, String> parseEnrichmentAttrs(List<String> eventEnrichment) {
     if (eventEnrichment == null) {
-      return Collections.EMPTY_MAP;
+      return Collections.emptyMap();
     }
 
     return eventEnrichment.stream()
@@ -283,7 +284,7 @@ public class ScalyrSinkTask extends SinkTask {
    */
   private List<CustomAppEventMapping> parseCustomAppEventMapping(String customAppEventMappingJson) {
     if (customAppEventMappingJson == null) {
-      return Collections.EMPTY_LIST;
+      return Collections.emptyList();
     }
 
     try {
@@ -340,7 +341,7 @@ public class ScalyrSinkTask extends SinkTask {
   /**
    * Captures performance stats when debug log is enabled.
    */
-  private static class PerfStats implements AutoCloseable {
+  private static class PerfStats {
     private final Logger log;
     private final long startTime = System.currentTimeMillis();
     private int numRecords;
@@ -358,10 +359,9 @@ public class ScalyrSinkTask extends SinkTask {
     }
 
     /**
-     * Close should be called when the addEvents call completes to log the performance stats.
+     * log should be called when the addEvents call completes to log the performance stats.
      */
-    @Override
-    public void close() {
+    public void log() {
       if (log.isDebugEnabled()) {
         long timeMs = System.currentTimeMillis() - startTime;
         log.debug("Processed numRecords {}, estimated serialized bytes {} in {} millisecs, {} MB/sec",

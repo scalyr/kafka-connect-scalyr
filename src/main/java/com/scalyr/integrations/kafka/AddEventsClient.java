@@ -52,7 +52,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
+import java.util.function.LongConsumer;
 
 /**
  * AddEventsClients provides abstraction for making Scalyr addEvents API calls.
@@ -79,12 +79,12 @@ public class AddEventsClient implements AutoCloseable {
    * Performs sleep for specified time period is ms.  In tests, this can be a Mockable sleep.
    * @param sleepMs Time in millisecs to sleep.
    */
-  private final Consumer<Long> sleep;
+  private final LongConsumer sleep;
 
   /** Session ID per Task */
   private final String sessionId = UUID.randomUUID().toString();
 
-  private static final String userAgent = "KafkaConnector/" + VersionUtil.getVersion()
+  private static final String USER_AGENT = "KafkaConnector/" + VersionUtil.getVersion()
     + " JVM/" + System.getProperty("java.version");
 
   /**
@@ -97,12 +97,12 @@ public class AddEventsClient implements AutoCloseable {
    * @param sleep Mockable sleep implementation.  If null, default implementation which sleeps will be used.
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable Consumer<Long> sleep) {
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable LongConsumer sleep) {
     this.apiKey = apiKey;
     this.addEventsTimeoutMs = addEventsTimeoutMs;
     this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
-    this.sleep = sleep != null ? sleep : (timeMs) -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
+    this.sleep = sleep != null ? sleep : timeMs -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
     this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
     addHeaders();
   }
@@ -149,7 +149,7 @@ public class AddEventsClient implements AutoCloseable {
       return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, startTimeMs), senderThread);
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
-      CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture();
+      CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture<>();
       errorFuture.complete(new AddEventsResponse().setStatus("Exception").setMessage(e.toString()));
       return errorFuture;
     }
@@ -266,7 +266,7 @@ public class AddEventsClient implements AutoCloseable {
     httpPost.addHeader("Content-type", ContentType.APPLICATION_JSON.toString());
     httpPost.addHeader("Accept", ContentType.APPLICATION_JSON.toString());
     httpPost.addHeader("Connection", "Keep-Alive");
-    httpPost.addHeader("User-Agent", userAgent);
+    httpPost.addHeader("User-Agent", USER_AGENT);
     httpPost.addHeader("Content-Encoding", compressor.getContentEncoding());
   }
 
