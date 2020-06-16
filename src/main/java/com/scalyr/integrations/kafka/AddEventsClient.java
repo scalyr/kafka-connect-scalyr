@@ -52,7 +52,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 
 /**
@@ -103,7 +102,7 @@ public class AddEventsClient implements AutoCloseable {
     this.addEventsTimeoutMs = addEventsTimeoutMs;
     this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
-    this.sleep = sleep != null ? sleep : (timeMs) -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
+    this.sleep = sleep != null ? sleep : timeMs -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
     this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
     addHeaders();
   }
@@ -150,7 +149,7 @@ public class AddEventsClient implements AutoCloseable {
       return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, startTimeMs), senderThread);
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
-      CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture();
+      CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture<>();
       errorFuture.complete(new AddEventsResponse().setStatus("Exception").setMessage(e.toString()));
       return errorFuture;
     }

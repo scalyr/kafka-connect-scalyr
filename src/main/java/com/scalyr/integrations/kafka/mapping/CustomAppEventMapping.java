@@ -140,7 +140,7 @@ public class CustomAppEventMapping {
   }
 
   private List<String> splitAttrFields(String attrFields) {
-    return attrFields == null ? Collections.EMPTY_LIST : Arrays.asList(attrFields.split(delimiter));
+    return attrFields == null ? Collections.emptyList() : Arrays.asList(attrFields.split(delimiter));
   }
 
   /**

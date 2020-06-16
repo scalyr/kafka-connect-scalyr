@@ -369,6 +369,14 @@ public class ScalyrSinkTaskTest {
   }
 
   /**
+   * Verify version() returns correct value
+   */
+  @Test
+  public void testVersion() {
+    assertEquals(VersionUtil.getVersion(), scalyrSinkTask.version());
+  }
+
+  /**
    * Start task using MockWebServer URL for the Scalyr server
    */
   private void startTask(MockWebServer server) {

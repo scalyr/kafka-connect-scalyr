@@ -41,6 +41,10 @@ public class CompressorFactory {
 
   public static final List<String> SUPPORTED_COMPRESSION_NAMES = ImmutableList.of(DEFLATE, ZSTD, NONE);
 
+  private CompressorFactory() {
+    throw new IllegalStateException("CompressorFactory should be accessed through static methods.");
+  }
+
   /**
    * Simple factory method for {@link Compressor} implementation for the specified compressionType and compressionLevel.
    * @return Compressor for the specified compression type and compression level.
@@ -62,13 +66,13 @@ public class CompressorFactory {
   private static class DeflateCompressor implements Compressor {
     private final int compressionLevel;
 
-    private static final int minCompressionLevel = -1;
-    private static final int maxCompressionLevel = 9;
-    private static final int defaultCompressionLevel = 6;
+    private static final int MIN_COMPRESSION_LEVEL = -1;
+    private static final int MAX_COMPRESSION_LEVEL = 9;
+    private static final int DEFAULT_COMPRESSION_LEVEL = 6;
 
     public DeflateCompressor(@Nullable Integer nullableCompressionLevel) {
-      int compressionLevel = nullableCompressionLevel == null ? defaultCompressionLevel : nullableCompressionLevel;
-      Preconditions.checkArgument(compressionLevel >= minCompressionLevel && compressionLevel <= maxCompressionLevel, "Invalid compression level");
+      int compressionLevel = nullableCompressionLevel == null ? DEFAULT_COMPRESSION_LEVEL : nullableCompressionLevel;
+      Preconditions.checkArgument(compressionLevel >= MIN_COMPRESSION_LEVEL && compressionLevel <= MAX_COMPRESSION_LEVEL, "Invalid compression level");
       this.compressionLevel = compressionLevel;
     }
 
@@ -94,13 +98,13 @@ public class CompressorFactory {
   private static class ZstdCompressor implements Compressor {
     private final int compressionLevel;
 
-    private static final int minCompressionLevel = 0;
-    private static final int maxCompressionLevel = 22;
-    private static final int defaultCompressionLevel = 0; // 0 means default, which is controlled by ZSTD_CLEVEL_DEFAULT
+    private static final int MIN_COMPRESSION_LEVEL = 0;
+    private static final int MAX_COMPRESSION_LEVEL = 22;
+    private static final int DEFAULT_COMPRESSION_LEVEL = 0; // 0 means default, which is controlled by ZSTD_CLEVEL_DEFAULT
 
     public ZstdCompressor(@Nullable Integer nullableCompressionLevel) {
-      int compressionLevel = nullableCompressionLevel == null ? defaultCompressionLevel : nullableCompressionLevel;
-      Preconditions.checkArgument(compressionLevel >= minCompressionLevel && compressionLevel <= maxCompressionLevel, "Invalid compression level");
+      int compressionLevel = nullableCompressionLevel == null ? DEFAULT_COMPRESSION_LEVEL : nullableCompressionLevel;
+      Preconditions.checkArgument(compressionLevel >= MIN_COMPRESSION_LEVEL && compressionLevel <= MAX_COMPRESSION_LEVEL, "Invalid compression level");
       this.compressionLevel = compressionLevel;
     }
 

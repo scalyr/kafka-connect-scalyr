@@ -27,6 +27,11 @@ import java.util.Map;
  * Extracts nested field values from the SinkRecord value.
  */
 public class FieldExtractor {
+
+  private FieldExtractor() {
+    throw new IllegalStateException("FieldExtractor should be accessed through static methods.");
+  }
+
   /**
    * Call the correct {@link #getField} based on the recordValue type.
    */

@@ -37,10 +37,10 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.Consumer;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -150,7 +150,7 @@ public class ScalyrSinkTask extends SinkTask {
 
     Stream<Event> events = records.stream()
       .map(eventMapper::createEvent)
-      .filter(event -> event != null);
+      .filter(Objects::nonNull);
 
     eventBuffer.addEvents(events);
     if (eventBuffer.estimatedSerializedBytes() >= batchSendSizeBytes
@@ -268,7 +268,7 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @VisibleForTesting Map<String, String> parseEnrichmentAttrs(List<String> eventEnrichment) {
     if (eventEnrichment == null) {
-      return Collections.EMPTY_MAP;
+      return Collections.emptyMap();
     }
 
     return eventEnrichment.stream()
@@ -284,7 +284,7 @@ public class ScalyrSinkTask extends SinkTask {
    */
   private List<CustomAppEventMapping> parseCustomAppEventMapping(String customAppEventMappingJson) {
     if (customAppEventMappingJson == null) {
-      return Collections.EMPTY_LIST;
+      return Collections.emptyList();
     }
 
     try {
