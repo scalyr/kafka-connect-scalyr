@@ -105,7 +105,7 @@ public class FilebeatMessageMapperTest {
       value.put("message", TestValues.MESSAGE_VALUE);
 
       // {host: {hostname: myhost}}
-      value.put("host", TestUtils.makeMap("hostname", TestValues.SERVER_VALUE + random.nextInt(numServers)));
+      value.put("host", TestUtils.makeMap("name", TestValues.SERVER_VALUE + random.nextInt(numServers)));
 
       // {log: {file: {path: /var/log/syslog}}};
       final Map<String, Object> file_path = new HashMap<>();
@@ -130,7 +130,7 @@ public class FilebeatMessageMapperTest {
       assertTrue(numParsers <= numLogFiles);
 
       final Schema hostSchema = SchemaBuilder.struct().name("host")
-        .field("hostname", Schema.STRING_SCHEMA).build();
+        .field("name", Schema.STRING_SCHEMA).build();
 
       final Schema fileSchema = SchemaBuilder.struct().name("file")
         .field("path", Schema.STRING_SCHEMA);
@@ -155,7 +155,7 @@ public class FilebeatMessageMapperTest {
 
       Struct value = new Struct(filebeatsSchema);
       value.put("message", TestValues.MESSAGE_VALUE);
-      value.put("host", new Struct(hostSchema).put("hostname", TestValues.SERVER_VALUE + random.nextInt(numServers)));
+      value.put("host", new Struct(hostSchema).put("name", TestValues.SERVER_VALUE + random.nextInt(numServers)));
 
       final int logFileNum = random.nextInt(numLogFiles);
       value.put("log", new Struct(logSchema).put("file", new Struct(fileSchema).put("path", TestValues.LOGFILE_VALUE + logFileNum)));
