@@ -8,6 +8,6 @@
     "topics": "logs",
     "api_key": "<log write api key from https://app.scalyr.com/keys>",
     "event_enrichment": "key1=value1,key2=value2",
-    "custom_app_event_mapping":"[{\"matcher\": {\"attribute\": \"app.name\", \"value\": \"myapp\"}, \"eventMapping\": {\"message\": \"message\", \"logfile\": \"log.path\", \"source\": \"host.hostname\", \"parser\": \"fields.parser\", \"version\": \"app.version\", \"appField1\", \"appField1\", \"appField2\", \"nested.appField2\"}}]"
+    "custom_app_event_mapping":"[{\"matcher\": {\"attribute\": \"app.name\", \"value\": \"myapp\"}, \"eventMapping\": {\"message\": \"message\", \"logfile\": \"log.path\", \"source\": \"host.hostname\", \"parser\": \"fields.parser\", \"version\": \"app.version\", \"appField1\":\"appField1\", \"appField2\":\"nested.appField2\"}}]"
   }
 }
