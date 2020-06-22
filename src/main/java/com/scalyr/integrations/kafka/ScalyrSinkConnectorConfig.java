@@ -114,7 +114,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         throw new ConfigException("Enrichment value must be key=value");
       }
 
-      if (keyValue.indexOf(' ') > 0) {
+      if (keyValue.indexOf(' ') >= 0) {
         throw new ConfigException("Enrichment value cannot have spaces");
       }
     }
