@@ -49,7 +49,7 @@ import java.util.List;
 public class FilebeatMessageMapper implements MessageMapper {
   private static final List<String> MESSAGE_FIELDS = ImmutableList.of("message");
   private static final List<String> LOGFILE_FIELDS = ImmutableList.of("log", "file", "path");
-  private static final List<String> SERVERHOST_FIELDS = ImmutableList.of("host", "hostname");
+  private static final List<String> SERVERHOST_FIELDS = ImmutableList.of("host", "name");
   private static final List<String> PARSER_FIELDS = ImmutableList.of("fields", "parser");
   private static final List<String> SOURCE_TYPE_FIELDS = ImmutableList.of("agent", "type");
   private static final String FILEBEAT = "filebeat";
