@@ -43,7 +43,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Kafka Connect Scalyr Sink Task
@@ -148,13 +147,19 @@ public class ScalyrSinkTask extends SinkTask {
       throw lastError;
     }
 
-    Stream<Event> events = records.stream()
+    records.stream()
       .map(eventMapper::createEvent)
-      .filter(Objects::nonNull);
+      .filter(Objects::nonNull)
+      .forEach(event -> {
+        eventBuffer.addEvent(event);
+        // Send events when batch send size is met
+        if (eventBuffer.estimatedSerializedBytes() >= batchSendSizeBytes) {
+          sendEvents();
+        }
+      });
 
-    eventBuffer.addEvents(events);
-    if (eventBuffer.estimatedSerializedBytes() >= batchSendSizeBytes
-       || (ScalyrUtil.currentTimeMillis() - lastBatchSendTimeMs) >= batchSendWaitMs) {
+    // Send events when batchSendWaitMs exceeded
+    if (ScalyrUtil.currentTimeMillis() - lastBatchSendTimeMs >= batchSendWaitMs) {
       sendEvents();
     }
   }
@@ -301,11 +306,9 @@ public class ScalyrSinkTask extends SinkTask {
     private final List<Event> eventBuffer = new ArrayList<>(2000);
     private final AtomicInteger msgSize = new AtomicInteger();
 
-    public void addEvents(Stream<Event> events) {
-      events.forEach(event -> {
-        eventBuffer.add(event);
-        msgSize.addAndGet(event.estimatedSerializedBytes());
-      });
+    public void addEvent(Event event) {
+      eventBuffer.add(event);
+      msgSize.addAndGet(event.estimatedSerializedBytes());
     }
 
     /**

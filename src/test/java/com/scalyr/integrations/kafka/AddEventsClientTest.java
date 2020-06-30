@@ -17,6 +17,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.google.common.annotations.VisibleForTesting;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsRequest;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsResponse;
@@ -66,7 +67,7 @@ public class AddEventsClientTest {
   private static final String SEQUENCE_ID = "si";
   private static final String SEQUENCE_NUM = "sn";
   private static final String ATTRS = "attrs";
-  private static final String EVENTS = "events";
+  @VisibleForTesting static final String EVENTS = "events";
   private static final String LOG_ID = "log";
   private static final String LOGS = "logs";
   private static final String ID = "id";

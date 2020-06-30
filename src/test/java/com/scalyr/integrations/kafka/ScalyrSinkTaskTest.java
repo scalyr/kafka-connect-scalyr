@@ -42,8 +42,11 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static com.scalyr.integrations.kafka.AddEventsClientTest.EVENTS;
 import static com.scalyr.integrations.kafka.TestUtils.fails;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
 
 /**
  * Test ScalyrSinkTask
@@ -112,11 +115,14 @@ public class ScalyrSinkTaskTest {
    * Create test SinkRecords and verify sent via addEvents API to the MockWebServer
    */
   private void putAndVerifyRecords(MockWebServer server) throws InterruptedException, java.io.IOException {
-    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+    // Add multiple server responses for `put` batch exceeds `batch_send_size_bytes`
+    IntStream.range(0, 2).forEach(i ->
+      server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)));
 
     // put SinkRecords
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, TestValues.MIN_BATCH_EVENTS, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
+    scalyrSinkTask.flush(Collections.emptyMap());
     scalyrSinkTask.waitForRequestsToComplete();
 
     verifyRecords(server, records);
@@ -128,17 +134,27 @@ public class ScalyrSinkTaskTest {
    * @param records SinkRecords sent
    */
   private void verifyRecords(MockWebServer server, List<SinkRecord> records) throws InterruptedException, java.io.IOException {
+    assertTrue(server.getRequestCount() > 0);
+
     EventMapper eventMapper = new EventMapper(
       scalyrSinkTask.parseEnrichmentAttrs(new ScalyrSinkConnectorConfig(createConfig()).getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)),
       CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON));
 
-    List<Event> events = records.stream()
+    List<Event> origEvents = records.stream()
       .map(eventMapper::createEvent)
       .collect(Collectors.toList());
     ObjectMapper objectMapper = new ObjectMapper();
-    RecordedRequest request = server.takeRequest();
-    Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().inputStream(), Map.class);
-    AddEventsClientTest.validateEvents(events, parsedEvents);
+
+    // There can be multiple addEvents server requests for the `records`
+    int eventStart = 0;
+    for (int i = 0; i < server.getRequestCount(); i++) {
+      RecordedRequest request = server.takeRequest();
+      Map<String, Object> addEventsPayload = objectMapper.readValue(request.getBody().inputStream(), Map.class);
+      List<Map<String, Object>> events = ((List)addEventsPayload.get(EVENTS));
+      assertNotNull(events);
+      AddEventsClientTest.validateEvents(origEvents.subList(eventStart, eventStart + events.size()), addEventsPayload);
+      eventStart += events.size();
+    }
   }
 
   /**
@@ -148,12 +164,11 @@ public class ScalyrSinkTaskTest {
   public void testPutFlushCycles() throws Exception {
     final int numCycles = 2;  // cycle = multiple puts followed by a flush
     final int numPuts = 10;
-    MockWebServer server = new MockWebServer();
-
-    startTask(server);
 
     for (int cycle = 0; cycle < numCycles; cycle++) {
       for (int put = 0; put < numPuts; put++) {
+        MockWebServer server = new MockWebServer();
+        startTask(server);
         putAndVerifyRecords(server);
       }
       scalyrSinkTask.flush(new HashMap<>());
@@ -214,12 +229,12 @@ public class ScalyrSinkTaskTest {
     final int numRecords = (TestValues.MIN_BATCH_EVENTS / 2) + 1;
     ScalyrUtil.setCustomTimeNs(0);  // Set custom time and never advance so batchSendWaitMs will not be met
 
-    MockWebServer server = new MockWebServer();
-
-    startTask(server);
 
     // Test multiple rounds of batch/send
     for (int i = 0; i < 2; i++) {
+      MockWebServer server = new MockWebServer();
+      startTask(server);
+
       server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
 
       // batch 1 - buffered
@@ -227,14 +242,18 @@ public class ScalyrSinkTaskTest {
       List<SinkRecord> allRecords = new ArrayList<>(records);
       scalyrSinkTask.put(records);
       scalyrSinkTask.waitForRequestsToComplete();
-      assertEquals(i, server.getRequestCount());
+      assertEquals(0, server.getRequestCount());
 
       // batch 2 - batch 1 & 2 sent together
       records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
       scalyrSinkTask.put(records);
       allRecords.addAll(records);
       scalyrSinkTask.waitForRequestsToComplete();
-      assertEquals(i + 1, server.getRequestCount());
+      assertEquals(1, server.getRequestCount());
+
+      // Send any remaining records
+      server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
+      scalyrSinkTask.flush(Collections.emptyMap());
 
       verifyRecords(server, allRecords);
     }
@@ -250,12 +269,11 @@ public class ScalyrSinkTaskTest {
     final int numRecords = 10;
     ScalyrUtil.setCustomTimeNs(0);
 
-    MockWebServer server = new MockWebServer();
-
-    startTask(server);
-
     // Test multiple rounds of batch/send
     for (int i = 0; i < 2; i++) {
+      MockWebServer server = new MockWebServer();
+      startTask(server);
+
       server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS));
 
       // batch 1 - buffered
@@ -263,14 +281,14 @@ public class ScalyrSinkTaskTest {
       List<SinkRecord> allRecords = new ArrayList<>(records);
       scalyrSinkTask.put(records);
       scalyrSinkTask.waitForRequestsToComplete();
-      assertEquals(i, server.getRequestCount());
+      assertEquals(0, server.getRequestCount());
 
       // batch 2 - buffered
       records = TestUtils.createRecords(topic, partition, numRecords, recordValue.apply(numServers, numLogFiles, numParsers));
       scalyrSinkTask.put(records);
       allRecords.addAll(records);
       scalyrSinkTask.waitForRequestsToComplete();
-      assertEquals(i, server.getRequestCount());
+      assertEquals(0, server.getRequestCount());
 
       // batch 3 - batchSendWaitMs exceeded
       ScalyrUtil.advanceCustomTimeMs(ScalyrSinkConnectorConfig.DEFAULT_BATCH_SEND_WAIT_MS + 1000);
@@ -278,7 +296,7 @@ public class ScalyrSinkTaskTest {
       scalyrSinkTask.put(records);
       allRecords.addAll(records);
       scalyrSinkTask.waitForRequestsToComplete();
-      assertEquals(i + 1, server.getRequestCount());
+      assertEquals(1, server.getRequestCount());
 
       verifyRecords(server, allRecords);
     }
@@ -305,6 +323,35 @@ public class ScalyrSinkTaskTest {
     // flush sends events in buffer
     scalyrSinkTask.flush(new HashMap<>());
     assertEquals(1, server.getRequestCount());
+
+    verifyRecords(server, records);
+  }
+
+  /**
+   * A single `put` call may contain enough record messages to meet `batch_send_size_bytes`.
+   * In this case, the single `put` call will result in multiple add events calls.
+   * Verify multiple add events calls are performed when a single put call exceeds `batch_send_size_bytes`.
+   */
+  @Test
+  public void testSinglePutExceedsBatchBytesSize() throws Exception {
+    final int numExpectedSends = 4;
+
+    MockWebServer server = new MockWebServer();
+    // Record value sizes may vary from the test data params.
+    // Larger record sizes will result in additional sends, so we enqueue extra server responses
+    IntStream.range(0, numExpectedSends * 2).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)));
+
+    startTask(server);
+
+    // single put batch with multiple add events server calls
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, TestValues.MIN_BATCH_EVENTS * numExpectedSends, recordValue.apply(numServers, numLogFiles, numParsers));
+    scalyrSinkTask.put(records);
+    scalyrSinkTask.waitForRequestsToComplete();
+    assertTrue(server.getRequestCount() >= numExpectedSends);
+
+    // send any remaining records
+    scalyrSinkTask.flush(new HashMap<>());
+    assertTrue(server.getRequestCount() >= numExpectedSends);
 
     verifyRecords(server, records);
   }
