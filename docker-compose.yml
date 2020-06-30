@@ -87,7 +87,7 @@ services:
 
   flog:
     image: mingrammer/flog
-    command: /bin/flog --loop --format apache_combined --delay 0.02
+    command: /bin/flog --loop --format apache_combined --delay 0.02 --sleep 1
     depends_on:
       - filebeat
 
@@ -110,7 +110,7 @@ services:
 
   flog-fluentd:
     image: mingrammer/flog
-    command: /bin/flog --loop --format apache_combined --delay 0.02
+    command: /bin/flog --loop --format apache_combined --delay 0.02 --sleep 1
     depends_on:
       - fluentd
     logging:
