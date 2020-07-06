@@ -16,6 +16,7 @@
 
 package com.scalyr.integrations.kafka.mapping;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.util.concurrent.RateLimiter;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.Event;
@@ -40,6 +41,7 @@ public class EventMapper {
   private static final List<MessageMapper> messageMappers = Stream.of(new FilebeatMessageMapper()).collect(Collectors.toList());
   private final Map<String, String> enrichmentAttrs;
   private static final RateLimiter noEventMapperLogRateLimiter = RateLimiter.create(1.0/30);  // 1 permit every 30 seconds to not log
+  @VisibleForTesting static final String DEFAULT_PARSER = "kafkaParser";
 
   /**
    * @param enrichmentAttrs Map<String, String> of enrichment key/value pairs
@@ -74,6 +76,15 @@ public class EventMapper {
       return "Kafka-" + record.topic();
     };
 
+    // Supply default parser if parser is null
+    Supplier<String> parser = () -> {
+      String parserName = messageMapper.getParser(record);
+      if (parserName != null) {
+        return parserName;
+      }
+      return DEFAULT_PARSER;
+    };
+
     return new Event()
       .setTopic(record.topic())
       .setPartition(record.kafkaPartition())
@@ -81,7 +92,7 @@ public class EventMapper {
       .setTimestamp(record.timestamp() != null ? record.timestamp() * ScalyrUtil.NANOS_PER_MS : ScalyrUtil.nanoTime())
       .setServerHost(serverHost.get())
       .setLogfile(messageMapper.getLogfile(record))
-      .setParser(messageMapper.getParser(record))
+      .setParser(parser.get())
       .setMessage(messageMapper.getMessage(record))
       .setEnrichmentAttrs(enrichmentAttrs)
       .setAdditionalAttrs(messageMapper.getAdditionalAttrs(record));

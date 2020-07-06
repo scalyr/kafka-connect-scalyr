@@ -22,7 +22,6 @@ import com.scalyr.integrations.kafka.TestUtils;
 import com.scalyr.integrations.kafka.TestValues;
 import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.Struct;
-import org.apache.kafka.connect.errors.DataException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.Test;
@@ -119,6 +118,22 @@ public class EventMapperTest {
   public void noMessageMapperTest() {
     SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, new HashMap<>(), offset.getAndIncrement());
     assertNull(eventMapper.createEvent(sinkRecord));
+  }
+
+  /**
+   * Test default values.
+   * Create a SinkRecord that matches a MessageMapper but does not provide any other values, so defaults will be used.
+   */
+  @Test
+  public void defaultValuesTest() {
+    // value = {agent: {type: filebeat}}
+    Map<String, Object> value = new HashMap<>();
+    value.put("agent", TestUtils.makeMap("type", "filebeat"));
+
+    SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, value, offset.getAndIncrement());
+    Event event = eventMapper.createEvent(sinkRecord);
+    assertEquals(EventMapper.DEFAULT_PARSER, event.getParser());
+    assertEquals("Kafka-" + sinkRecord.topic(), event.getServerHost());
   }
 
   /**
