@@ -101,13 +101,17 @@ def check_scalyr_events(additional_filter, expected_num_events):
     count += 1
 
   if matches > 0:
-    has_expected_attrs = check_event_attrs(result['matches'][0]['attributes'])
+    has_expected_session_attrs = check_session_attrs(result['sessions'])
+    has_expected_event_attrs = check_event_attrs(result['matches'][0]['attributes'])
 
   print("Query returned {0} Scalyr events".format(matches))
-  if not has_expected_attrs:
+  if not has_expected_session_attrs:
+    print "Session attributes incorrect!"
+
+  if not has_expected_event_attrs:
     print "Event attributes incorrect!"
 
-  return matches == expected_num_events and has_expected_attrs
+  return matches == expected_num_events and has_expected_session_attrs and has_expected_event_attrs
 
 def check_event_attrs(attrs):
     """
@@ -117,7 +121,7 @@ def check_event_attrs(attrs):
         # custom app
         expected_attrs = ['activity_type', 'categories', 'dest_country', 'dest_ip', 'dest_port', 'device_type', 'domain',
         'forwarder', 'id', 'is_phishing_domain', 'is_ransomware_dest_ip', 'is_ransomware_src_ip', 'is_threat_dest_ip',
-        'is_threat_src_ip', 'outcome', 'parser', 'source_component', 'src_country', 'src_ip', 'src_port',
+        'is_threat_src_ip', 'outcome', 'source_component', 'src_country', 'src_ip', 'src_port',
         'subcategory', 'username', 'version']
     elif 'dataset' in attrs and attrs['dataset'] == 'accesslog':
         # filebeats flog apache log
@@ -137,6 +141,22 @@ def check_event_attrs(attrs):
         print("Did not get expected attributes {0}.  Query returned attributes {1}".format(expected_attrs, attrs))
 
     return has_expected_attrs
+
+# sessions is in the format:
+# {"sess_d5952fdd-eed2-45f1-8106-b2f2af55dabd": { "serverHost": "some.host.name", "parser":"accesslog"} }
+def check_session_attrs(sessions):
+    DEFAULT_SOURCE = "Kafka-logs"
+    expected_attrs = ['parser', 'source']
+    for session_attrs in sessions.values():
+        is_valid_session_attrs = all (k in session_attrs for k in expected_attrs)
+        if not is_valid_session_attrs:
+            print("Did not get expected attributes {0}.  Query returned attributes {1}".format(expected_attrs, session_attrs))
+            break
+        if session_attrs['source'] == DEFAULT_SOURCE:
+            print("source should not be default value {0}.  Check event mappings".format(DEFAULT_SOURCE))
+            is_valid_session_attrs = False
+
+    return is_valid_session_attrs
 
 # Main
 if __name__ == "__main__":

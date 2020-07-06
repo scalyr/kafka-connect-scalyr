@@ -53,6 +53,7 @@ def create_record():
     r["source"] = "WebScanner"
     r["src_port"] = random.randrange(1000, 65535)
     r["dest_port"] = 443
+    r["hostname"] = hostname
     r["category"] = {"categories": "General, Search Engines and Portals", "subcategory": "Portals"}
     r["message"] = time.strftime("%b %d %H:%M:%S ") + hostname + " PATCH /revolutionize/communities HTTP/1.0 400 71875 http://www.customerstrategic.org/roi/enhance Opera/8.13 (Macintosh; U; PPC Mac OS X 10_9_3; en-US) Presto/2.10.218 Version/12.00"
     r["device_type"] = [random.choice(device_options)]
