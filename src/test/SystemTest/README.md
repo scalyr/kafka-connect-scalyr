@@ -20,6 +20,9 @@ export WRITE_API_KEY=...
 export READ_API_KEY=...
 export CIRCLE_BUILD_NUM=0
 
+# Build Docker images with latest code
+docker-compose build
+
 # Start containers
 docker-compose up -d
 
@@ -30,8 +33,10 @@ docker-compose ps
 .circleci/configure_scalyr_connector.sh
  
 # Verify logs are in Scalyr
-Filebeat: python .circleci/verify_scalyr_events.py method='*'
+Filebeat:   python .circleci/verify_scalyr_events.py dataset=\'accesslog\'
 Custom app: python .circleci/verify_scalyr_events.py app=\'customApp\'
+Fluentd:    python .circleci/verify_scalyr_events.py tag=\'fluentd-apache\'
+Fluent Bit: python .circleci/verify_scalyr_events.py tag=\'fluentbit-cpu\' 50
 
 # Shutdown the Docker test env
 docker-compose down
