@@ -46,6 +46,9 @@ public class Event {
   private String message;
   private Map<String, Object> additionalAttrs;
 
+  // Estimated per event serialization overhead: 16 bytes add events JSON format, 16 bytes timestamp, 16 bytes Kafka offset
+  private static final int EVENT_SERIALIZATION_OVERHEAD_BYTES = 48;
+
   // Setters
   public Event setTopic(String topic) {
     this.topic = topic;
@@ -159,6 +162,8 @@ public class Event {
    */
   public int estimatedSerializedBytes() {
     int size = getMessage() == null ? 0 : getMessage().length();
+    size += getTopic().length();
+    size += EVENT_SERIALIZATION_OVERHEAD_BYTES;
 
     if (getAdditionalAttrs() != null) {
       size += getAdditionalAttrs().entrySet().stream()
