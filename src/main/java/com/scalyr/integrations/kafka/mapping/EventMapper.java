@@ -17,6 +17,7 @@
 package com.scalyr.integrations.kafka.mapping;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.RateLimiter;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.Event;
@@ -24,12 +25,11 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Converts a SinkRecord to a Scalyr Event.
@@ -38,7 +38,8 @@ import java.util.stream.Stream;
  */
 public class EventMapper {
   private static final Logger log = LoggerFactory.getLogger(EventMapper.class);
-  private static final List<MessageMapper> messageMappers = Stream.of(new FilebeatMessageMapper()).collect(Collectors.toList());
+  private static final List<MessageMapper> DEFAULT_MAPPERS = ImmutableList.of(new FilebeatMessageMapper());
+  private static final List<MessageMapper> messageMappers = new ArrayList<>();
   private final Map<String, String> enrichmentAttrs;
   private static final RateLimiter noEventMapperLogRateLimiter = RateLimiter.create(1.0/30);  // 1 permit every 30 seconds to not log
   @VisibleForTesting static final String DEFAULT_PARSER = "kafkaParser";
@@ -52,6 +53,7 @@ public class EventMapper {
       log.info("Adding custom event mappers {}", customAppEventMappings);
       customAppEventMappings.forEach(customAppEventMapping -> messageMappers.add(new CustomAppMessageMapper(customAppEventMapping)));
     }
+    messageMappers.addAll(DEFAULT_MAPPERS);
   }
 
   /**

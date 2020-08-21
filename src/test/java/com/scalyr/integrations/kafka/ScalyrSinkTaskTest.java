@@ -24,6 +24,7 @@ import com.scalyr.integrations.kafka.TestUtils.TriFunction;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
+import org.apache.kafka.common.record.TimestampType;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
@@ -34,6 +35,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -62,6 +64,7 @@ public class ScalyrSinkTaskTest {
   private static final int numServers = 5;
   private static final int numLogFiles = 3;
   private static final int numParsers = 2;
+  private static final int ADD_EVENTS_OVERHEAD_BYTES = (int)(TestValues.MIN_BATCH_SEND_SIZE_BYTES * 0.2); // 20% overhead
 
   /**
    * Create test parameters for each SinkRecordValueCreator type.
@@ -149,6 +152,7 @@ public class ScalyrSinkTaskTest {
     int eventStart = 0;
     for (int i = 0; i < server.getRequestCount(); i++) {
       RecordedRequest request = server.takeRequest();
+      assertTrue(request.getBody().size() - ADD_EVENTS_OVERHEAD_BYTES < TestValues.MIN_BATCH_SEND_SIZE_BYTES);
       Map<String, Object> addEventsPayload = objectMapper.readValue(request.getBody().inputStream(), Map.class);
       List<Map<String, Object>> events = ((List)addEventsPayload.get(EVENTS));
       assertNotNull(events);
@@ -354,6 +358,62 @@ public class ScalyrSinkTaskTest {
     assertTrue(server.getRequestCount() >= numExpectedSends);
 
     verifyRecords(server, records);
+  }
+
+  /**
+   * Verify large message interspersed with small messages does not cause event buffer
+   * size to be exceeded.
+   */
+  @Test
+  public void testLargeMsgMixedWithSmallMsgs() throws Exception {
+    final int numExpectedSends = 3;
+
+    MockWebServer server = new MockWebServer();
+    // Record value sizes may vary from the test data params.
+    // Larger record sizes will result in additional sends, so we enqueue extra server responses
+    IntStream.range(0, numExpectedSends).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)));
+
+    startTask(server);
+
+    // Small records
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, TestValues.MIN_BATCH_EVENTS / 2, recordValue.apply(numServers, numLogFiles, numParsers));
+    // Large record
+    SinkRecord largeRecord = TestUtils.createRecords(topic, partition, 1, recordValue.apply(numServers, numLogFiles, numParsers)).get(0);
+    records.add(new SinkRecord(largeRecord.topic(), largeRecord.kafkaPartition(), null, null, null, createLargeRecordValue(largeRecord.value()), largeRecord.kafkaOffset(), largeRecord.timestamp(), TimestampType.CREATE_TIME));
+    // Small records
+    records.addAll(TestUtils.createRecords(topic, partition, TestValues.MIN_BATCH_EVENTS / 2, recordValue.apply(numServers, numLogFiles, numParsers)));
+
+    scalyrSinkTask.put(records);
+    scalyrSinkTask.waitForRequestsToComplete();
+    assertEquals(2, server.getRequestCount());  // small msgs + 1 large msg
+
+    // send any remaining records
+    scalyrSinkTask.flush(new HashMap<>());
+    assertTrue(server.getRequestCount() >= numExpectedSends);
+
+    verifyRecords(server, records);
+  }
+
+  /**
+   * Mutates SinkRecord value to have a large message
+   * @param value Map/Struct SinkRecord value
+   * @return Mutated value with large message
+   */
+  private Object createLargeRecordValue(Object value) {
+    byte[] largeMsgBytes = new byte[TestValues.MIN_BATCH_SEND_SIZE_BYTES];
+    Arrays.fill(largeMsgBytes, (byte)'a');
+    String largeMsg = new String(largeMsgBytes);
+
+    if (value instanceof Map) {
+      Map<String, Object> mapValue = (Map)value;
+      mapValue.put("message", largeMsg);
+    } else if (value instanceof Struct) {
+      Struct structValue = (Struct)value;
+      structValue.put("message", largeMsg);
+    } else {
+      throw new IllegalArgumentException("Unsupported record value type " + value.getClass().getName());
+    }
+    return value;
   }
 
   /**

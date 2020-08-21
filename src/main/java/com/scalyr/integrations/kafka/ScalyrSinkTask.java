@@ -151,11 +151,10 @@ public class ScalyrSinkTask extends SinkTask {
       .map(eventMapper::createEvent)
       .filter(Objects::nonNull)
       .forEach(event -> {
-        eventBuffer.addEvent(event);
-        // Send events when batch send size is met
-        if (eventBuffer.estimatedSerializedBytes() >= batchSendSizeBytes) {
+        if (eventBuffer.estimatedSerializedBytes() + event.estimatedSerializedBytes() >= batchSendSizeBytes) {
           sendEvents();
         }
+        eventBuffer.addEvent(event);
       });
 
     // Send events when batchSendWaitMs exceeded
