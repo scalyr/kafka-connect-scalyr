@@ -16,9 +16,12 @@
 
 package com.scalyr.integrations.kafka;
 
+import com.google.common.base.Suppliers;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Supplier;
 
 /**
  * Abstraction for a Scalyr Event.
@@ -158,9 +161,18 @@ public class Event {
   public Map<String, String> getEnrichmentAttrs() { return enrichmentAttrs; }
 
   /**
-   * @return Size in bytes of Event message and attributes.
+   * @return Size in bytes of Event message and attributes.  The size is memoized and should only be called once
+   * all Event fields are populated and will not be changed.
    */
   public int estimatedSerializedBytes() {
+    return estimatedSizeSupplier.get();
+  }
+
+  /**
+   * Memoize estimated event size
+   */
+  private Supplier<Integer> estimatedSizeSupplier = Suppliers.memoize(() -> estimatedSerializedBytesForMemoization());
+  private int estimatedSerializedBytesForMemoization() {
     int size = getMessage() == null ? 0 : getMessage().length();
     size += getTopic().length();
     size += EVENT_SERIALIZATION_OVERHEAD_BYTES;
