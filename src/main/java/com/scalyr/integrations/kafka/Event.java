@@ -16,12 +16,9 @@
 
 package com.scalyr.integrations.kafka;
 
-import com.google.common.base.Suppliers;
-
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * Abstraction for a Scalyr Event.
@@ -48,6 +45,9 @@ public class Event {
   private long timestamp;
   private String message;
   private Map<String, Object> additionalAttrs;
+
+  // Cached estimated event size
+  private int estimatedSizeBytes;
 
   // Estimated per event serialization overhead: 16 bytes add events JSON format, 16 bytes timestamp, 16 bytes Kafka offset
   private static final int EVENT_SERIALIZATION_OVERHEAD_BYTES = 48;
@@ -161,18 +161,14 @@ public class Event {
   public Map<String, String> getEnrichmentAttrs() { return enrichmentAttrs; }
 
   /**
-   * @return Size in bytes of Event message and attributes.  The size is memoized and should only be called once
+   * @return Size in bytes of Event message and attributes.  The size is cached and should only be called once
    * all Event fields are populated and will not be changed.
    */
   public int estimatedSerializedBytes() {
-    return estimatedSizeSupplier.get();
-  }
+    if (estimatedSizeBytes > 0) {
+      return estimatedSizeBytes;
+    }
 
-  /**
-   * Memoize estimated event size
-   */
-  private Supplier<Integer> estimatedSizeSupplier = Suppliers.memoize(() -> estimatedSerializedBytesForMemoization());
-  private int estimatedSerializedBytesForMemoization() {
     int size = getMessage() == null ? 0 : getMessage().length();
     size += getTopic().length();
     size += EVENT_SERIALIZATION_OVERHEAD_BYTES;
@@ -181,7 +177,8 @@ public class Event {
       size += getAdditionalAttrs().entrySet().stream()
         .mapToInt(entry -> entry.getKey().length() + (entry.getValue() == null ? 0 : entry.getValue().toString().length())).sum();
     }
-    return size;
+    estimatedSizeBytes = size;
+    return estimatedSizeBytes;
   }
 
   /**
