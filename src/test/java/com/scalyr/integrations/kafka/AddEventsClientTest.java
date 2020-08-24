@@ -251,6 +251,16 @@ public class AddEventsClientTest {
     assertEquals(++requestCount, server.getRequestCount());
     assertEquals(0, mockSleep.sleepTime.get());
 
+    // Input too long
+    mockSleep.reset();
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_INPUT_TOO_LONG));
+    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
+    assertTrue(addEventsResponse.isSuccess());
+    assertTrue(addEventsResponse.hasIgnorableError());
+    assertFalse(addEventsResponse.isRetriable());
+    assertEquals(++requestCount, server.getRequestCount());
+    assertEquals(0, mockSleep.sleepTime.get());
+
     // Empty Response
     mockSleep.reset();
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(200).setBody(""));

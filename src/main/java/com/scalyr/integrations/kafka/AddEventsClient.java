@@ -24,6 +24,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.base.Preconditions;
+import com.google.common.collect.ImmutableList;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.scalyr.api.internal.ScalyrUtil;
@@ -104,6 +105,7 @@ public class AddEventsClient implements AutoCloseable {
 
   /**
    * Limit number of add events payloads that are logged when MAX_ADD_EVENTS_PAYLOAD_BYTES is exceeded
+   * TODO: Make this configurable
    */
   private static final RateLimiter payloadTooLargeLogRateLimiter = RateLimiter.create(1.0/900);  // 1 permit every 15 minutes
 
@@ -493,6 +495,7 @@ public class AddEventsClient implements AutoCloseable {
   public static class AddEventsResponse {
     public static final String SUCCESS = "success";
     public static final String CLIENT_BAD_PARAM = "error/client/badParam";
+    private static final List<String> errorMsgsToIgnore = ImmutableList.of("input too long");
 
     private String status;
     private String message;
@@ -516,7 +519,12 @@ public class AddEventsClient implements AutoCloseable {
     }
 
     public boolean isSuccess() {
-      return SUCCESS.equals(getStatus());
+      return SUCCESS.equals(getStatus()) || hasIgnorableError();
+    }
+
+    public boolean hasIgnorableError() {
+      return !SUCCESS.equals(getStatus()) &&
+        errorMsgsToIgnore.stream().anyMatch(ignoreMsg -> getMessage() != null && getMessage().contains(ignoreMsg));
     }
 
     /**

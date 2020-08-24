@@ -251,6 +251,10 @@ public class ScalyrSinkTask extends SinkTask {
     if (!addEventsResponse.isSuccess()) {
       lastError = createConnectException(addEventsResponse);
     }
+
+    if (addEventsResponse.hasIgnorableError()) {
+      log.warn("AddEventResponse with ignorable error {}", addEventsResponse);
+    }
   }
 
   /**
