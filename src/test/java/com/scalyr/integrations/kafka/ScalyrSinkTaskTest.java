@@ -224,6 +224,32 @@ public class ScalyrSinkTaskTest {
   }
 
   /**
+   * Verify that input too long error is ignored
+   */
+  @Test
+  public void testIgnoreInputTooLongError() {
+    TestUtils.MockSleep mockSleep = new TestUtils.MockSleep();
+    this.scalyrSinkTask = new ScalyrSinkTask(mockSleep.sleep);
+    MockWebServer server = new MockWebServer();
+
+    startTask(server);
+
+    // Input too long error first request
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_INPUT_TOO_LONG));
+    List<SinkRecord> records = TestUtils.createRecords(topic, partition, TestValues.MIN_BATCH_EVENTS, recordValue.apply(numServers, numLogFiles, numParsers));
+    scalyrSinkTask.put(records);
+    scalyrSinkTask.waitForRequestsToComplete();
+    assertEquals(1, server.getRequestCount());
+    assertEquals(0, mockSleep.sleepTime.get());
+
+    // Subsequent requests should succeed
+    IntStream.range(0, 2).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)));
+    scalyrSinkTask.put(records);
+    scalyrSinkTask.flush(new HashMap<>());
+    assertEquals(3, server.getRequestCount());
+  }
+
+  /**
    * Verify event buffering batchSendSize.
    * 1) Verify addEvents is not called when batchSendSize is not met.
    * 2) Verify addEvents is called once batchSendSize is met without batchSendWaitMs met.

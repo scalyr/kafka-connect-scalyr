@@ -54,6 +54,7 @@ public abstract class TestValues {
   public static final String ADD_EVENTS_RESPONSE_SUCCESS;
   public static final String ADD_EVENTS_RESPONSE_SERVER_BUSY;
   public static final String ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM;
+  public static final String ADD_EVENTS_RESPONSE_INPUT_TOO_LONG;
   public static final String CUSTOM_APP_EVENT_MAPPING_JSON;
   public static final String CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON;
 
@@ -68,6 +69,8 @@ public abstract class TestValues {
         .setStatus("error/server/busy").setMessage("Requests are throttled.  Try again later"));
       ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM = objectMapper.writeValueAsString(new AddEventsClient.AddEventsResponse()
         .setStatus("error/client/badParam").setMessage("Maybe caused by bad api key"));
+      ADD_EVENTS_RESPONSE_INPUT_TOO_LONG = objectMapper.writeValueAsString(new AddEventsClient.AddEventsResponse()
+        .setStatus("error/client/badParam").setMessage("input too long (maximum 6000000 characters)"));
 
       CUSTOM_APP_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping(".")));
       CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping("_")));

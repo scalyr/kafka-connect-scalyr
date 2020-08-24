@@ -35,6 +35,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -250,6 +251,16 @@ public class AddEventsClientTest {
     assertEquals(++requestCount, server.getRequestCount());
     assertEquals(0, mockSleep.sleepTime.get());
 
+    // Input too long
+    mockSleep.reset();
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_INPUT_TOO_LONG));
+    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
+    assertTrue(addEventsResponse.isSuccess());
+    assertTrue(addEventsResponse.hasIgnorableError());
+    assertFalse(addEventsResponse.isRetriable());
+    assertEquals(++requestCount, server.getRequestCount());
+    assertEquals(0, mockSleep.sleepTime.get());
+
     // Empty Response
     mockSleep.reset();
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(200).setBody(""));
@@ -391,6 +402,41 @@ public class AddEventsClientTest {
       testSingleRequestWithCompression();
     });
   }
+
+  /**
+   * Verify Add Events Requests that exceed maximum add events payload size are not sent.
+   */
+  @Test
+  public void testTooLargeAddEventsSkipped() throws Exception {
+    final int numEvents = 6;
+    final byte[] largeMsgBytes = new byte[1000000];
+    Arrays.fill(largeMsgBytes, (byte)'a');
+    final String largeMsg = new String(largeMsgBytes);
+
+    // Setup Mock Server
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
+
+    // Create addEvents request
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    events.forEach(event -> event.setMessage(largeMsg));
+    addEventsClient.log(events);
+
+    // request should be skipped
+    assertEquals(0, server.getRequestCount());
+
+    // Send next batch that is smaller than max payload size
+    events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    addEventsClient.log(events);
+
+    // Verify request
+    ObjectMapper objectMapper = new ObjectMapper();
+    RecordedRequest request = server.takeRequest();
+    Map<String, Object> parsedEvents = objectMapper.readValue(request.getBody().inputStream(), Map.class);
+    validateEvents(events, parsedEvents);
+    verifyHeaders(request.getHeaders());
+  }
+
 
   /**
    * Create a single addEvents Request and verify the request body and header
