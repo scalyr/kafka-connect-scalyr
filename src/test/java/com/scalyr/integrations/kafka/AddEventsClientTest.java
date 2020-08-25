@@ -468,7 +468,7 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, this.deflateCompressor);
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 
@@ -493,9 +493,9 @@ public class AddEventsClientTest {
     // Verify request
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
-    Map<String, Object> parsedEvents = objectMapper.readValue(this.deflateCompressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
+    Map<String, Object> parsedEvents = objectMapper.readValue(deflateCompressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
     validateEvents(events, parsedEvents);
-    verifyHeaders(request.getHeaders(), this.deflateCompressor);
+    verifyHeaders(request.getHeaders(), deflateCompressor);
   }
 
   /**
