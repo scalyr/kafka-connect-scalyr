@@ -160,7 +160,7 @@ public class AddEventsClient implements AutoCloseable {
       CountingOutputStream countingStream = new CountingOutputStream(compressor.newStreamCompressor(outputStream));
       addEventsRequest.writeJson(countingStream);
 
-      long rawPayloadSize = countingStream.getCount();
+      long uncompressedPayloadSize = countingStream.getCount();
 
       // Wait for dependent addEvents call to complete and return dependent failed future if failed
       if (dependentAddEvents != null && !dependentAddEvents.get(remainingMs(startTimeMs), TimeUnit.MILLISECONDS).isSuccess()) {
@@ -169,7 +169,7 @@ public class AddEventsClient implements AutoCloseable {
       }
 
       final byte[] addEventsPayload = outputStream.toByteArray();
-      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, rawPayloadSize, startTimeMs), senderThread);
+      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, uncompressedPayloadSize, startTimeMs), senderThread);
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
       CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture<>();
@@ -187,19 +187,20 @@ public class AddEventsClient implements AutoCloseable {
 
   /**
    * Call Scalyr addEvents API with {@link #addEventsTimeoutMs} using exponential backoff.
-   * @param addEventsPayload byte[] addEvents payload
-   * @param rawPayloadSize long raw addEvents payload size before the compression.
+   * @param addEventsPayload byte[] addEvents payload (post compression if compression is enabled).
+   * @param uncompressedPayloadSize long raw serialized JSON addEvents payload size before the compression.
    * @param startTimeMs time in ms from epoch when `log` is called.  Used to enforce `addEventsTimeoutMs` deadline.
    * @return AddEventsResponse
    */
-  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long rawPayloadSize, long startTimeMs) {
+  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long uncompressedPayloadSize, long startTimeMs) {
     log.debug("addEvents payload size {} bytes", addEventsPayload.length);
 
     // 6 MB add events payload exceeded.  Log the issue and skip this message.
-    if (rawPayloadSize > MAX_ADD_EVENTS_PAYLOAD_BYTES || addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
+    if (uncompressedPayloadSize > MAX_ADD_EVENTS_PAYLOAD_BYTES || addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
       // NOTE: compressed size should never really be larger than uncompressed size unless there is a pathological case
       // and we are trying to compress fully random uncompressable data
-      log.error("Uncompressed add events payload size {} (compressed {}) exceeds maximum size.  Skipping this add events request.  Log data will be lost", rawPayloadSize, addEventsPayload.length);
+      log.error("Uncompressed add events payload size {} (compressed {}) exceeds maximum size.  Skipping this add events request.  Log data will be lost",
+        uncompressedPayloadSize, addEventsPayload.length);
       if (payloadTooLargeLogRateLimiter.tryAcquire()) {
         log.error("Add events too large payload: {}", new String(addEventsPayload));
       }
