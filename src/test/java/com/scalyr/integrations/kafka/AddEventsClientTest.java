@@ -432,7 +432,7 @@ public class AddEventsClientTest {
     assertEquals(0, server.getRequestCount());
 
     CompletableFuture<AddEventsResponse> initialAddEventsResponseFuture = addEventsClient.log(events);
-    AddEventsResponse initialAddEventsResponse = initialAddEventsResponseFuture.get(5, TimeUnit.SECONDS);;
+    AddEventsResponse initialAddEventsResponse = initialAddEventsResponseFuture.get(5, TimeUnit.SECONDS);
     assertEquals(AddEventsResponse.SUCCESS, initialAddEventsResponse.getStatus());
     assertEquals("Skipped due to payload too large", initialAddEventsResponse.getMessage());
 
@@ -481,7 +481,7 @@ public class AddEventsClientTest {
     assertEquals(0, server.getRequestCount());
 
     CompletableFuture<AddEventsResponse> initialAddEventsResponseFuture = addEventsClient.log(events);
-    AddEventsResponse initialAddEventsResponse = initialAddEventsResponseFuture.get(5, TimeUnit.SECONDS);;
+    AddEventsResponse initialAddEventsResponse = initialAddEventsResponseFuture.get(5, TimeUnit.SECONDS);
     assertEquals(AddEventsResponse.SUCCESS, initialAddEventsResponse.getStatus());
     assertEquals("Skipped due to payload too large", initialAddEventsResponse.getMessage());
 
@@ -490,7 +490,7 @@ public class AddEventsClientTest {
 
     // Send next batch that is smaller than max payload size
     events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
-    AddEventsResponse addEventsResponse = addEventsClient.log(events, initialAddEventsResponseFuture).get(5, TimeUnit.SECONDS);;
+    AddEventsResponse addEventsResponse = addEventsClient.log(events, initialAddEventsResponseFuture).get(5, TimeUnit.SECONDS);
     assertEquals(AddEventsResponse.SUCCESS, addEventsResponse.getStatus());
     assertEquals("success", addEventsResponse.getMessage());
 
