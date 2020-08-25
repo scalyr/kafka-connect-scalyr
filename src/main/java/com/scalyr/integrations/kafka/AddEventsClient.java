@@ -23,6 +23,7 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
 import com.google.common.io.CountingOutputStream;
@@ -295,7 +296,8 @@ public class AddEventsClient implements AutoCloseable {
    * @param addEventsPayload  byte[] addEvents payload (post compression if compression is enabled).
    * @return Decompressed payload byte array.
    */
-  private byte[] getDecompressedPayload(byte[] addEventsPayload) {
+  @VisibleForTesting
+  protected byte[] getDecompressedPayload(byte[] addEventsPayload) {
     byte[] decompressedPayload = "unable to decompress the payload".getBytes();
     try {
       try (InputStream inputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(addEventsPayload))) {

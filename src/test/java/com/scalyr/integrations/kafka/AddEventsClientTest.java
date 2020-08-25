@@ -30,10 +30,15 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
+import sun.misc.IOUtils;
+import sun.nio.ch.IOUtil;
 
+import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -495,9 +500,20 @@ public class AddEventsClientTest {
     // Verify request
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
-    Map<String, Object> parsedEvents = objectMapper.readValue(deflateCompressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
+
+    InputStream requestBodyInputStream = new BufferedInputStream(request.getBody().inputStream());
+    byte[] requestBody = IOUtils.readAllBytes(requestBodyInputStream);
+    byte[] decompressedRequestBody = addEventsClient.getDecompressedPayload(requestBody);
+    Map<String, Object> parsedEvents = objectMapper.readValue(decompressedRequestBody, Map.class);
     validateEvents(events, parsedEvents);
     verifyHeaders(request.getHeaders(), deflateCompressor);
+  }
+
+  @Test
+  public void testGetDecompressedPayloadFailedToDecompress() {
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
+    byte[] decompressedPayload = addEventsClient.getDecompressedPayload("invalid".getBytes());
+    assertEquals("unable to decompress the payload", new String(decompressedPayload));
   }
 
   /**
