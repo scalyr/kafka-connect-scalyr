@@ -420,6 +420,7 @@ public class AddEventsClientTest {
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    addEventsClient.logEventPayloadsOnPayloadTooLarge = false;
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 
@@ -467,6 +468,7 @@ public class AddEventsClientTest {
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
+    addEventsClient.logEventPayloadsOnPayloadTooLarge = false;
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 

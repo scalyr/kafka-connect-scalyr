@@ -105,10 +105,16 @@ public class AddEventsClient implements AutoCloseable {
   private static final AddEventsResponse PAYLOAD_TOO_LARGE = new AddEventsResponse().setStatus(AddEventsResponse.SUCCESS).setMessage("Skipped due to payload too large");
 
   /**
+   * True to log actual event payloads in the "payload too large" log messages.
+   * Usually it's set to false during tests to avoid logging many very large payloads.
+   */
+  protected boolean logEventPayloadsOnPayloadTooLarge = true;
+
+  /**
    * Limit number of add events payloads that are logged when MAX_ADD_EVENTS_PAYLOAD_BYTES is exceeded
    * TODO: Make this configurable
    */
-  private static final RateLimiter payloadTooLargeLogRateLimiter = RateLimiter.create(1.0/900);  // 1 permit every 15 minutes
+  private static final RateLimiter payloadTooLargeLogRateLimiter = RateLimiter.create( 1.0 / 900);  // 1 permit every 15 minutes
 
   /**
    * AddEventsClient which allows a mockable sleep for testing.
@@ -201,7 +207,7 @@ public class AddEventsClient implements AutoCloseable {
       // and we are trying to compress fully random uncompressable data
       log.error("Uncompressed add events payload size {} bytes (compressed {} bytes) exceeds maximum size ({} bytes).  Skipping this add events request.  Log data will be lost",
         uncompressedPayloadSize, addEventsPayload.length, MAX_ADD_EVENTS_PAYLOAD_BYTES);
-      if (payloadTooLargeLogRateLimiter.tryAcquire()) {
+      if (logEventPayloadsOnPayloadTooLarge && payloadTooLargeLogRateLimiter.tryAcquire()) {
         log.error("Add events too large payload: {}", new String(addEventsPayload));
       }
       return PAYLOAD_TOO_LARGE;
