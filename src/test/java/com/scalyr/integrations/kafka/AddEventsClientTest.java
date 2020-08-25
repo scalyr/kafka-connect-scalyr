@@ -414,7 +414,6 @@ public class AddEventsClientTest {
     final byte[] largeMsgBytes = new byte[1000000];
     Arrays.fill(largeMsgBytes, (byte)'a');
     final String largeMsg = new String(largeMsgBytes);
-    AddEventsResponse addEventsResponse;
 
     // Setup Mock Server
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
@@ -426,7 +425,7 @@ public class AddEventsClientTest {
 
     assertEquals(0, server.getRequestCount());
 
-    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);
+    AddEventsResponse addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
     assertEquals("success", addEventsResponse.getStatus());
     assertEquals("Skipped due to payload too large", addEventsResponse.getMessage());
 
@@ -462,7 +461,6 @@ public class AddEventsClientTest {
     final byte[] largeMsgBytes = new byte[1000000];
     Arrays.fill(largeMsgBytes, (byte)'a');
     final String largeMsg = new String(largeMsgBytes);
-    AddEventsResponse addEventsResponse;
 
     // Setup Mock Server
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
@@ -474,7 +472,7 @@ public class AddEventsClientTest {
 
     assertEquals(0, server.getRequestCount());
 
-    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
+    AddEventsResponse addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
     assertEquals("success", addEventsResponse.getStatus());
     assertEquals("Skipped due to payload too large", addEventsResponse.getMessage());
 
