@@ -117,7 +117,7 @@ public class AddEventsClient implements AutoCloseable {
    * Limit number of add events payloads that are logged when MAX_ADD_EVENTS_PAYLOAD_BYTES is exceeded
    * TODO: Make this configurable
    */
-  private static final RateLimiter payloadTooLargeLogRateLimiter = RateLimiter.create( 1.0 / 900);  // 1 permit every 15 minutes
+  private static final RateLimiter payloadTooLargeLogRateLimiter = RateLimiter.create(1.0/900);  // 1 permit every 15 minutes
 
   /**
    * AddEventsClient which allows a mockable sleep for testing.
