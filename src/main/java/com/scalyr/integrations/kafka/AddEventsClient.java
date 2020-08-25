@@ -157,9 +157,7 @@ public class AddEventsClient implements AutoCloseable {
       outputStream.reset();
 
       // NOTE: We use countingStream since we also need access to the raw serialized payload size before the compression
-      OutputStream compressorStream = compressor.newStreamCompressor(outputStream);
-      CountingOutputStream countingStream = new CountingOutputStream(compressorStream);
-
+      CountingOutputStream countingStream = new CountingOutputStream(compressor.newStreamCompressor(outputStream));
       addEventsRequest.writeJson(countingStream);
 
       long rawPayloadSize = countingStream.getCount();
