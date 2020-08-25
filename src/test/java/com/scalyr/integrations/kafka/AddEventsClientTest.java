@@ -427,6 +427,8 @@ public class AddEventsClientTest {
     assertEquals(0, server.getRequestCount());
 
     addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);
+    assertEquals(addEventsResponse.getStatus(), "success");
+    assertEquals(addEventsResponse.getMessage(), "Skipped due to payload too large");
 
     // request should be skipped
     assertEquals(0, server.getRequestCount());
@@ -434,6 +436,8 @@ public class AddEventsClientTest {
     // Send next batch that is smaller than max payload size
     events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);
+    assertEquals(addEventsResponse.getStatus(), "success");
+    assertEquals(addEventsResponse.getMessage(), "success");
 
     // request should succeed
     assertEquals(1, server.getRequestCount());
@@ -445,7 +449,6 @@ public class AddEventsClientTest {
     validateEvents(events, parsedEvents);
     verifyHeaders(request.getHeaders());
   }
-
 
   /**
    * Verify Add Events Requests that exceed maximum add events payload size before compression are not sent.
@@ -472,6 +475,8 @@ public class AddEventsClientTest {
     assertEquals(0, server.getRequestCount());
 
     addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
+    assertEquals(addEventsResponse.getStatus(), "success");
+    assertEquals(addEventsResponse.getMessage(), "Skipped due to payload too large");
 
     // request should be skipped
     assertEquals(0, server.getRequestCount());
@@ -479,6 +484,8 @@ public class AddEventsClientTest {
     // Send next batch that is smaller than max payload size
     events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
+    assertEquals(addEventsResponse.getStatus(), "success");
+    assertEquals(addEventsResponse.getMessage(), "success");
 
     // request should succeed
     assertEquals(1, server.getRequestCount());
