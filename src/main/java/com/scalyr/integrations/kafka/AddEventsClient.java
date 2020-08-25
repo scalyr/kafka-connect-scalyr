@@ -200,7 +200,7 @@ public class AddEventsClient implements AutoCloseable {
     // 6 MB add events payload exceeded.  Log the issue and skip this message.
     if (rawPayloadSize > MAX_ADD_EVENTS_PAYLOAD_BYTES || addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
       // NOTE: compressed size should never really be larger than uncompressed size unless there is a pathological case
-      log.error("Add events payload size {} exceeds maximum size.  Skipping this add events request.  Log data will be lost", addEventsPayload.length);
+      log.error("Uncompressed add events payload size {} (compressed {}) exceeds maximum size.  Skipping this add events request.  Log data will be lost", rawPayloadSize, addEventsPayload.length);
       if (payloadTooLargeLogRateLimiter.tryAcquire()) {
         log.error("Add events too large payload: {}", new String(addEventsPayload));
       }

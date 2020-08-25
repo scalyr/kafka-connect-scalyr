@@ -426,14 +426,14 @@ public class AddEventsClientTest {
 
     assertEquals(0, server.getRequestCount());
 
-    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
+    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);
 
     // request should be skipped
     assertEquals(0, server.getRequestCount());
 
     // Send next batch that is smaller than max payload size
     events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
-    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
+    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);
 
     // request should succeed
     assertEquals(1, server.getRequestCount());
@@ -449,6 +449,9 @@ public class AddEventsClientTest {
 
   /**
    * Verify Add Events Requests that exceed maximum add events payload size before compression are not sent.
+   *
+   * In this scenario we test a request which is larger than 6 MB before compression, but smaller than 6 MB
+   * after compression.
    */
   @Test
   public void testTooLargeAddEventsSkippedDeflateCompressedRequest() throws Exception {
@@ -483,6 +486,8 @@ public class AddEventsClientTest {
     // Verify request
     ObjectMapper objectMapper = new ObjectMapper();
     RecordedRequest request = server.takeRequest();
+    Map<String, Object> parsedEvents = objectMapper.readValue(this.deflateCompressor.newStreamDecompressor(request.getBody().inputStream()), Map.class);
+    validateEvents(events, parsedEvents);
     verifyHeaders(request.getHeaders(), this.deflateCompressor);
   }
 
