@@ -16,6 +16,9 @@
 
 package com.scalyr.integrations.kafka;
 
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
+import com.google.common.base.Strings;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -51,6 +54,9 @@ public class Event {
 
   // Estimated per event serialization overhead: 16 bytes add events JSON format, 16 bytes timestamp, 16 bytes Kafka offset
   private static final int EVENT_SERIALIZATION_OVERHEAD_BYTES = 48;
+
+  // Used for estimating JSON encoded String length
+  private static final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
 
   // Setters
   public Event setTopic(String topic) {
@@ -169,7 +175,7 @@ public class Event {
       return estimatedSizeBytes;
     }
 
-    int size = getMessage() == null ? 0 : getMessage().length();
+    int size = Strings.isNullOrEmpty(getMessage()) ? 0 : estimateEscapedStringSize(getMessage());
     size += getTopic().length();
     size += EVENT_SERIALIZATION_OVERHEAD_BYTES;
 
@@ -179,6 +185,29 @@ public class Event {
     }
     estimatedSizeBytes = size;
     return estimatedSizeBytes;
+  }
+
+  /**
+   * Estimate the escaped String length.
+   * If it String JSON, calculate the quoted String length.
+   * If it is not JSON, then use the String length as the estimate.
+   * This trades off some inaccuracies where the String may contain quotable characters for faster performance.
+   * @return Estimated escaped String size
+   */
+  private int estimateEscapedStringSize(String s) {
+    if (s == null) {
+      return 0;
+    }
+    if (s.length() < 2) {
+      return s.length();
+    }
+    if (s.charAt(0) == '{' && s.charAt(s.length() - 1) == '}') {
+      StringBuilder sb = new StringBuilder(s.length() + 20);
+      jsonStringEncoder.quoteAsString(s, sb);
+      return sb.length();
+    }
+
+    return s.length();
   }
 
   /**
