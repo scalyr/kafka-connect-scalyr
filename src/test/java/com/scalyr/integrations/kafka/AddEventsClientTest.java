@@ -427,8 +427,8 @@ public class AddEventsClientTest {
     assertEquals(0, server.getRequestCount());
 
     addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);
-    assertEquals(addEventsResponse.getStatus(), "success");
-    assertEquals(addEventsResponse.getMessage(), "Skipped due to payload too large");
+    assertEquals("success", addEventsResponse.getStatus());
+    assertEquals("Skipped due to payload too large", addEventsResponse.getMessage());
 
     // request should be skipped
     assertEquals(0, server.getRequestCount());
@@ -436,8 +436,8 @@ public class AddEventsClientTest {
     // Send next batch that is smaller than max payload size
     events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);
-    assertEquals(addEventsResponse.getStatus(), "success");
-    assertEquals(addEventsResponse.getMessage(), "success");
+    assertEquals("success", addEventsResponse.getStatus());
+    assertEquals("success", addEventsResponse.getMessage());
 
     // request should succeed
     assertEquals(1, server.getRequestCount());
@@ -475,8 +475,8 @@ public class AddEventsClientTest {
     assertEquals(0, server.getRequestCount());
 
     addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
-    assertEquals(addEventsResponse.getStatus(), "success");
-    assertEquals(addEventsResponse.getMessage(), "Skipped due to payload too large");
+    assertEquals("success", addEventsResponse.getStatus());
+    assertEquals("Skipped due to payload too large", addEventsResponse.getMessage());
 
     // request should be skipped
     assertEquals(0, server.getRequestCount());
@@ -484,8 +484,8 @@ public class AddEventsClientTest {
     // Send next batch that is smaller than max payload size
     events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
-    assertEquals(addEventsResponse.getStatus(), "success");
-    assertEquals(addEventsResponse.getMessage(), "success");
+    assertEquals("success", addEventsResponse.getStatus());
+    assertEquals("success", addEventsResponse.getMessage());
 
     // request should succeed
     assertEquals(1, server.getRequestCount());
