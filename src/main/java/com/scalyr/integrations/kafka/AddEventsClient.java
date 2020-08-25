@@ -297,17 +297,12 @@ public class AddEventsClient implements AutoCloseable {
    */
   private byte[] getDecompressedPayload(byte[] addEventsPayload) {
     byte[] decompressedPayload = "unable to decompress the payload".getBytes();
-    InputStream inputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(addEventsPayload));
-
     try {
-      decompressedPayload = IOUtils.readAllBytes(inputStream);
+      try (InputStream inputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(addEventsPayload))) {
+        decompressedPayload = IOUtils.readAllBytes(inputStream);
+      }
     } catch (Exception ex) {
       // NOTE: Failing to decompress the payload should not be fatal
-    }
-    finally {
-      try {
-        inputStream.close();
-      } catch (IOException e) {}
     }
 
     return decompressedPayload;
