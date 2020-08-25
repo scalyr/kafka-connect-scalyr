@@ -87,12 +87,14 @@ public class AddEventsClientTest {
   private MockWebServer server;
   private String scalyrUrl;
   private Compressor compressor;
+  private Compressor deflateCompressor;
 
   @Before
   public void setup() {
     server = new MockWebServer();
     scalyrUrl = server.url("/").toString();
     this.compressor = CompressorFactory.getCompressor(CompressorFactory.NONE, null);
+    this.deflateCompressor = CompressorFactory.getCompressor(CompressorFactory.DEFLATE, 3);
   }
 
   @After
@@ -407,11 +409,12 @@ public class AddEventsClientTest {
    * Verify Add Events Requests that exceed maximum add events payload size are not sent.
    */
   @Test
-  public void testTooLargeAddEventsSkipped() throws Exception {
+  public void testTooLargeAddEventsSkippedUncompressedRequest() throws Exception {
     final int numEvents = 6;
     final byte[] largeMsgBytes = new byte[1000000];
     Arrays.fill(largeMsgBytes, (byte)'a');
     final String largeMsg = new String(largeMsgBytes);
+    AddEventsResponse addEventsResponse;
 
     // Setup Mock Server
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
@@ -420,14 +423,20 @@ public class AddEventsClientTest {
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
-    addEventsClient.log(events);
+
+    assertEquals(0, server.getRequestCount());
+
+    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
 
     // request should be skipped
     assertEquals(0, server.getRequestCount());
 
     // Send next batch that is smaller than max payload size
     events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
-    addEventsClient.log(events);
+    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
+
+    // request should succeed
+    assertEquals(1, server.getRequestCount());
 
     // Verify request
     ObjectMapper objectMapper = new ObjectMapper();
@@ -437,6 +446,45 @@ public class AddEventsClientTest {
     verifyHeaders(request.getHeaders());
   }
 
+
+  /**
+   * Verify Add Events Requests that exceed maximum add events payload size before compression are not sent.
+   */
+  @Test
+  public void testTooLargeAddEventsSkippedDeflateCompressedRequest() throws Exception {
+    final int numEvents = 6;
+    final byte[] largeMsgBytes = new byte[1000000];
+    Arrays.fill(largeMsgBytes, (byte)'a');
+    final String largeMsg = new String(largeMsgBytes);
+    AddEventsResponse addEventsResponse;
+
+    // Setup Mock Server
+    server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
+
+    // Create addEvents request
+    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, this.deflateCompressor);
+    List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    events.forEach(event -> event.setMessage(largeMsg));
+
+    assertEquals(0, server.getRequestCount());
+
+    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
+
+    // request should be skipped
+    assertEquals(0, server.getRequestCount());
+
+    // Send next batch that is smaller than max payload size
+    events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    addEventsResponse = addEventsClient.log(events).get(5, TimeUnit.SECONDS);;
+
+    // request should succeed
+    assertEquals(1, server.getRequestCount());
+
+    // Verify request
+    ObjectMapper objectMapper = new ObjectMapper();
+    RecordedRequest request = server.takeRequest();
+    verifyHeaders(request.getHeaders(), this.deflateCompressor);
+  }
 
   /**
    * Create a single addEvents Request and verify the request body and header
@@ -469,6 +517,13 @@ public class AddEventsClientTest {
    * Verify HTTP request headers are set correctly.
    */
   private void verifyHeaders(Headers headers) {
+    verifyHeaders(headers, this.compressor);
+  }
+
+  /**
+   * Verify HTTP request headers are set correctly.
+   */
+  private void verifyHeaders(Headers headers, Compressor compressor) {
     assertEquals(ContentType.APPLICATION_JSON.toString(), headers.get("Content-type"));
     assertEquals(ContentType.APPLICATION_JSON.toString(), headers.get("Accept"));
     assertEquals("Keep-Alive", headers.get("Connection"));
