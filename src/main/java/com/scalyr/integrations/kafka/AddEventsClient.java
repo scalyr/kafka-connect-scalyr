@@ -156,9 +156,9 @@ public class AddEventsClient implements AutoCloseable {
 
       outputStream.reset();
 
-      // NOTE: We use countingStream since we also need access to the raw serialized payload size before compression
+      // NOTE: We use countingStream since we also need access to the raw serialized payload size before the compression
       OutputStream compressorStream = compressor.newStreamCompressor(outputStream);
-      CountingOutputStream countingStream = new CountingOutputStream(compressorStream);// NOTE: compressed size should never really be larger than uncompressed size unless there is a pathological case
+      CountingOutputStream countingStream = new CountingOutputStream(compressorStream);
 
       addEventsRequest.writeJson(countingStream);
 
@@ -200,6 +200,7 @@ public class AddEventsClient implements AutoCloseable {
     // 6 MB add events payload exceeded.  Log the issue and skip this message.
     if (rawPayloadSize > MAX_ADD_EVENTS_PAYLOAD_BYTES || addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
       // NOTE: compressed size should never really be larger than uncompressed size unless there is a pathological case
+      // and we are trying to compress fully random uncompressable data
       log.error("Uncompressed add events payload size {} (compressed {}) exceeds maximum size.  Skipping this add events request.  Log data will be lost", rawPayloadSize, addEventsPayload.length);
       if (payloadTooLargeLogRateLimiter.tryAcquire()) {
         log.error("Add events too large payload: {}", new String(addEventsPayload));
