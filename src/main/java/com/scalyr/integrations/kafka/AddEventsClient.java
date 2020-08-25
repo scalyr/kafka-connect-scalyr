@@ -199,8 +199,8 @@ public class AddEventsClient implements AutoCloseable {
     if (uncompressedPayloadSize > MAX_ADD_EVENTS_PAYLOAD_BYTES || addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
       // NOTE: compressed size should never really be larger than uncompressed size unless there is a pathological case
       // and we are trying to compress fully random uncompressable data
-      log.error("Uncompressed add events payload size {} (compressed {}) exceeds maximum size.  Skipping this add events request.  Log data will be lost",
-        uncompressedPayloadSize, addEventsPayload.length);
+      log.error("Uncompressed add events payload size {} bytes (compressed {} bytes) exceeds maximum size ({} bytes).  Skipping this add events request.  Log data will be lost",
+        uncompressedPayloadSize, addEventsPayload.length, MAX_ADD_EVENTS_PAYLOAD_BYTES);
       if (payloadTooLargeLogRateLimiter.tryAcquire()) {
         log.error("Add events too large payload: {}", new String(addEventsPayload));
       }
