@@ -39,10 +39,13 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.misc.IOUtils;
 
 import javax.annotation.Nullable;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -207,8 +210,12 @@ public class AddEventsClient implements AutoCloseable {
       // and we are trying to compress fully random uncompressable data
       log.error("Uncompressed add events payload size {} bytes (compressed {} bytes) exceeds maximum size ({} bytes).  Skipping this add events request.  Log data will be lost",
         uncompressedPayloadSize, addEventsPayload.length, MAX_ADD_EVENTS_PAYLOAD_BYTES);
+
       if (logEventPayloadsOnPayloadTooLarge && payloadTooLargeLogRateLimiter.tryAcquire()) {
-        log.error("Add events too large payload: {}", new String(addEventsPayload));
+        // NOTE: If compression is enabled, we need to decompress the compressed payload so we can log the raw
+        // uncompressed value
+        byte[] decompressedPayload = getDecompressedPayload(addEventsPayload);
+        log.error("Add events too large payload: {}", new String(decompressedPayload));
       }
       return PAYLOAD_TOO_LARGE;
     }
@@ -279,6 +286,31 @@ public class AddEventsClient implements AutoCloseable {
       log.error("Could not parse addEvents response", e);
       return new AddEventsResponse().setStatus("parseResponseFailed");
     }
+  }
+
+  /**
+   * This method takes (potentially) compressed addEventsPayload and if it's compressed, it decompresses it and returns
+   * a decompressed version. It ignores any exceptions which may arise when trying to decompress the payload.
+   *
+   * @param addEventsPayload  byte[] addEvents payload (post compression if compression is enabled).
+   * @return Decompressed payload byte array.
+   */
+  private byte[] getDecompressedPayload(byte[] addEventsPayload) {
+    byte[] decompressedPayload = "unable to decompress the payload".getBytes();
+    InputStream inputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(addEventsPayload));
+
+    try {
+      decompressedPayload = IOUtils.readAllBytes(inputStream);
+    } catch (Exception ex) {
+      // NOTE: Failing to decompress the payload should not be fatal
+    }
+    finally {
+      try {
+        inputStream.close();
+      } catch (IOException e) {}
+    }
+
+    return decompressedPayload;
   }
 
   /**
