@@ -25,6 +25,7 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.io.CountingOutputStream;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.scalyr.api.internal.ScalyrUtil;
@@ -154,7 +155,14 @@ public class AddEventsClient implements AutoCloseable {
         .setEvents(events);
 
       outputStream.reset();
-      addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
+
+      // NOTE: We use countingStream since we also need access to the raw serialized payload size before compression
+      OutputStream compressorStream = compressor.newStreamCompressor(outputStream);
+      CountingOutputStream countingStream = new CountingOutputStream(compressorStream);// NOTE: compressed size should never really be larger than uncompressed size unless there is a pathological case
+
+      addEventsRequest.writeJson(countingStream);
+
+      long rawPayloadSize = countingStream.getCount();
 
       // Wait for dependent addEvents call to complete and return dependent failed future if failed
       if (dependentAddEvents != null && !dependentAddEvents.get(remainingMs(startTimeMs), TimeUnit.MILLISECONDS).isSuccess()) {
@@ -163,7 +171,7 @@ public class AddEventsClient implements AutoCloseable {
       }
 
       final byte[] addEventsPayload = outputStream.toByteArray();
-      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, startTimeMs), senderThread);
+      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, rawPayloadSize, startTimeMs), senderThread);
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
       CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture<>();
@@ -182,14 +190,16 @@ public class AddEventsClient implements AutoCloseable {
   /**
    * Call Scalyr addEvents API with {@link #addEventsTimeoutMs} using exponential backoff.
    * @param addEventsPayload byte[] addEvents payload
+   * @param rawPayloadSize long raw addEvents payload size before the compression.
    * @param startTimeMs time in ms from epoch when `log` is called.  Used to enforce `addEventsTimeoutMs` deadline.
    * @return AddEventsResponse
    */
-  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long startTimeMs) {
+  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long rawPayloadSize, long startTimeMs) {
     log.debug("addEvents payload size {} bytes", addEventsPayload.length);
 
     // 6 MB add events payload exceeded.  Log the issue and skip this message.
-    if (addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
+    if (rawPayloadSize > MAX_ADD_EVENTS_PAYLOAD_BYTES || addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
+      // NOTE: compressed size should never really be larger than uncompressed size unless there is a pathological case
       log.error("Add events payload size {} exceeds maximum size.  Skipping this add events request.  Log data will be lost", addEventsPayload.length);
       if (payloadTooLargeLogRateLimiter.tryAcquire()) {
         log.error("Add events too large payload: {}", new String(addEventsPayload));
