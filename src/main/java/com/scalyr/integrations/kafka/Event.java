@@ -16,13 +16,14 @@
 
 package com.scalyr.integrations.kafka;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
 import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 /**
  * Abstraction for a Scalyr Event.
@@ -57,11 +58,17 @@ public class Event {
   // {"ts":,"si":"","sn":,"attrs":{"message":""},"log":"999"},
   private static final int EVENT_SERIALIZATION_OVERHEAD_BYTES = 93;
 
-  // Used for estimating JSON encoded String length
-  private static final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
-
-  // Cached StringBuilder used for estimating escaped JSON String length
-  private static final AtomicReference<StringBuilder> jsonStringBuilder = new AtomicReference<>();
+  /**
+   * JSON Special characters that need to be escaped.  Used to estimate escaped JSON string lengths.
+   * Backspace is replaced with \b
+   * Form feed is replaced with \f
+   * Newline is replaced with \n
+   * Carriage return is replaced with \r
+   * Tab is replaced with \t
+   * Double quote is replaced with \"
+   * Backslash is replaced with \\
+   */
+  private static final Set<Character> JSON_ESCAPED_CHARS = ImmutableSet.of('\b', '\f', '\n', '\r', '\t', '"', '\\');
 
   // Setters
   public Event setTopic(String topic) {
@@ -209,18 +216,17 @@ public class Event {
     }
 
     if (s.charAt(0) == '{' && s.charAt(s.length() - 1) == '}') {
-      StringBuilder sb = jsonStringBuilder.get();
-      if (sb == null) {
-        sb = new StringBuilder(s.length() + 20);
-        jsonStringBuilder.compareAndSet(null, sb);
-      }
-      sb.setLength(0);
-
-      jsonStringEncoder.quoteAsString(s, sb);
-      return sb.length();
+      return s.length() + countJsonEscapedCharacters(s);
     }
 
     return s.length();
+  }
+
+  private int countJsonEscapedCharacters(String s) {
+    return (int)IntStream.range(0, s.length())
+      .mapToObj(i -> s.charAt(i))
+      .filter(JSON_ESCAPED_CHARS::contains)
+      .count();
   }
 
   /**
