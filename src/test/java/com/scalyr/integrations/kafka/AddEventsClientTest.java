@@ -18,6 +18,7 @@ package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.io.ByteStreams;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsRequest;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsResponse;
@@ -32,7 +33,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
-import sun.misc.IOUtils;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -502,7 +502,7 @@ public class AddEventsClientTest {
     RecordedRequest request = server.takeRequest();
 
     InputStream requestBodyInputStream = new BufferedInputStream(request.getBody().inputStream());
-    byte[] requestBody = IOUtils.readAllBytes(requestBodyInputStream);
+    byte[] requestBody = ByteStreams.toByteArray(requestBodyInputStream);
     byte[] decompressedRequestBody = addEventsClient.getDecompressedPayload(requestBody);
     Map<String, Object> parsedEvents = objectMapper.readValue(decompressedRequestBody, Map.class);
     validateEvents(events, parsedEvents);
