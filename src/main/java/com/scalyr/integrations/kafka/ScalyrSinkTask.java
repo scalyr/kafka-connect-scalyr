@@ -32,7 +32,6 @@ import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -40,7 +39,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
@@ -299,48 +297,6 @@ public class ScalyrSinkTask extends SinkTask {
       return CustomAppEventMapping.parseCustomAppEventMappingConfig(customAppEventMappingJson);
     } catch (IOException e) {
       throw new RuntimeException(e);
-    }
-  }
-
-  /**
-   * Buffer for Events to send larger addEvents batch size.
-   */
-  private static class EventBuffer {
-    private final List<Event> eventBuffer = new ArrayList<>(2000);
-    private final AtomicInteger msgSize = new AtomicInteger();
-
-    public void addEvent(Event event) {
-      eventBuffer.add(event);
-      msgSize.addAndGet(event.estimatedSerializedBytes());
-    }
-
-    /**
-     * @return Number of events
-     */
-    public int length() {
-      return eventBuffer.size();
-    }
-
-    /**
-     * @return Estimated serialized bytes of event messages and attributes
-     */
-    public int estimatedSerializedBytes() {
-      return msgSize.get();
-    }
-
-    /**
-     * @return Buffered Events
-     */
-    public List<Event> getEvents() {
-      return eventBuffer;
-    }
-
-    /**
-     * Clears the event buffer
-     */
-    public void clear() {
-      eventBuffer.clear();
-      msgSize.set(0);
     }
   }
 

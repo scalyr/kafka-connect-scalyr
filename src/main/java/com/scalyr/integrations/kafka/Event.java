@@ -16,9 +16,14 @@
 
 package com.scalyr.integrations.kafka;
 
+import com.google.common.base.Strings;
+import com.google.common.collect.ImmutableSet;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.IntStream;
 
 /**
  * Abstraction for a Scalyr Event.
@@ -49,8 +54,21 @@ public class Event {
   // Cached estimated event size
   private int estimatedSizeBytes;
 
-  // Estimated per event serialization overhead: 16 bytes add events JSON format, 16 bytes timestamp, 16 bytes Kafka offset
-  private static final int EVENT_SERIALIZATION_OVERHEAD_BYTES = 48;
+  // Estimated per event serialization overhead: 58 bytes add events JSON format, 19 bytes timestamp, 16 bytes Kafka offset
+  // {"ts":,"si":"","sn":,"attrs":{"message":""},"log":"999"},
+  private static final int EVENT_SERIALIZATION_OVERHEAD_BYTES = 93;
+
+  /**
+   * JSON Special characters that need to be escaped.  Used to estimate escaped JSON string lengths.
+   * Backspace is replaced with \b
+   * Form feed is replaced with \f
+   * Newline is replaced with \n
+   * Carriage return is replaced with \r
+   * Tab is replaced with \t
+   * Double quote is replaced with \"
+   * Backslash is replaced with \\
+   */
+  private static final Set<Character> JSON_ESCAPED_CHARS = ImmutableSet.of('\b', '\f', '\n', '\r', '\t', '"', '\\');
 
   // Setters
   public Event setTopic(String topic) {
@@ -169,16 +187,46 @@ public class Event {
       return estimatedSizeBytes;
     }
 
-    int size = getMessage() == null ? 0 : getMessage().length();
+    int size = Strings.isNullOrEmpty(getMessage()) ? 0 : estimateEscapedStringSize(getMessage());
     size += getTopic().length();
     size += EVENT_SERIALIZATION_OVERHEAD_BYTES;
 
     if (getAdditionalAttrs() != null) {
       size += getAdditionalAttrs().entrySet().stream()
-        .mapToInt(entry -> entry.getKey().length() + (entry.getValue() == null ? 0 : entry.getValue().toString().length())).sum();
+        .mapToInt(entry -> entry.getKey().length() + (entry.getValue() == null ? 0 : estimateEscapedStringSize(entry.getValue().toString()))).sum();
     }
     estimatedSizeBytes = size;
     return estimatedSizeBytes;
+  }
+
+  /**
+   * Estimate the escaped String length for JSON strings.
+   * JSON payload requires extra escaping which needs to be taken into the size estimate.
+   *
+   * If it is not JSON, then use the String length as the estimate.
+   * This trades off some inaccuracies where the String may contain quotable characters for faster performance.
+   * @return Estimated escaped String size
+   */
+  private int estimateEscapedStringSize(String s) {
+    if (s == null) {
+      return 0;
+    }
+    if (s.length() < 2) {
+      return s.length();
+    }
+
+    if (s.charAt(0) == '{' && s.charAt(s.length() - 1) == '}') {
+      return s.length() + countJsonEscapedCharacters(s);
+    }
+
+    return s.length();
+  }
+
+  private int countJsonEscapedCharacters(String s) {
+    return (int)IntStream.range(0, s.length())
+      .mapToObj(s::charAt)
+      .filter(JSON_ESCAPED_CHARS::contains)
+      .count();
   }
 
   /**

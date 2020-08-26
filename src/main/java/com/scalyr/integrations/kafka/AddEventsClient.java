@@ -26,6 +26,7 @@ import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.io.ByteStreams;
 import com.google.common.io.CountingOutputStream;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
@@ -40,7 +41,6 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import sun.misc.IOUtils;
 
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
@@ -298,7 +298,7 @@ public class AddEventsClient implements AutoCloseable {
     byte[] decompressedPayload = "unable to decompress the payload".getBytes();
     try {
       try (InputStream inputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(addEventsPayload))) {
-        decompressedPayload = IOUtils.readAllBytes(inputStream);
+        decompressedPayload = ByteStreams.toByteArray(inputStream);
       }
     } catch (Exception ex) {
       // NOTE: Failing to decompress the payload should not be fatal

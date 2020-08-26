@@ -30,6 +30,7 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -41,6 +42,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 /**
@@ -70,6 +72,44 @@ public class TestUtils {
     assertEquals(expected.size(), actual.size());
     assertEquals(expected.keySet(), actual.keySet());
     expected.keySet().forEach(key -> assertEquals(expected.get(key), actual.get(key)));
+  }
+
+  /**
+   * Create `numEvents` Events with the specified `numServers`, `numLogFiles`, and `numParsers` values.
+   */
+  public static List<Event> createTestEvents(int numEvents, int numServers, int numLogFiles, int numParsers) {
+    return createTestEvents(numEvents, TestValues.MESSAGE_VALUE, numServers, numLogFiles, numParsers);
+  }
+
+  /**
+   * Create `numEvents` Events with the specified `msg`, `numServers`, `numLogFiles`, and `numParsers` values.
+   */
+  public static List<Event> createTestEvents(int numEvents, String msg, int numServers, int numLogFiles, int numParsers) {
+    return createTestEventStream(numEvents, msg, numServers, numLogFiles, numParsers)
+      .collect(Collectors.toList());
+  }
+
+  public static Stream<Event> createTestEventStream(int numEvents, String msg, int numServers, int numLogFiles, int numParsers) {
+    assertTrue(numParsers <= numLogFiles);
+    Random random = new Random();
+    return IntStream.range(0, numEvents)
+      .boxed()
+      .map(i -> {
+        final int logFileNum = random.nextInt(numLogFiles);
+        return new Event()
+          .setTopic(TestValues.TOPIC_VALUE)
+          .setPartition(0)
+          .setOffset(i)
+          .setMessage(msg)
+          .setParser(TestValues.PARSER_VALUE + logFileNum % numParsers)
+          .setLogfile(TestValues.LOGFILE_VALUE + logFileNum)
+          .setServerHost(TestValues.SERVER_VALUE + random.nextInt(numServers))
+          .setTimestamp(ScalyrUtil.nanoTime())
+          .addAdditionalAttr("app", "test")
+          .addAdditionalAttr("isTest", true)
+          .addAdditionalAttr("version", 2.3)
+          .setEnrichmentAttrs(TestValues.ENRICHMENT_VALUE_MAP);
+      });
   }
 
   /**

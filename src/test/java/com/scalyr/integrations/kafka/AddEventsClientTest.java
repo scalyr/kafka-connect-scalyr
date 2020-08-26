@@ -18,6 +18,7 @@ package com.scalyr.integrations.kafka;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.io.ByteStreams;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsRequest;
 import com.scalyr.integrations.kafka.AddEventsClient.AddEventsResponse;
@@ -32,7 +33,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
-import sun.misc.IOUtils;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
@@ -43,7 +43,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
@@ -127,7 +126,7 @@ public class AddEventsClientTest {
    * and verify the AddEventsRequest is serialized correctly to JSON.
    */
   private void addEventsRequestTest(int numEvents, int numServers, int numLogFiles, int numParsers) throws IOException {
-    List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     createAndVerifyAddEventsRequest(events);
   }
 
@@ -197,7 +196,7 @@ public class AddEventsClientTest {
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
-    List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsClient.log(events);
 
     // Verify request
@@ -224,7 +223,7 @@ public class AddEventsClientTest {
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
     for (int i = 0; i < numRequests; i++) {
       // Create addEvents request
-      List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+      List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
       addEventsClient.log(events);
 
       // Verify addEvents request
@@ -248,7 +247,7 @@ public class AddEventsClientTest {
 
     // Server Too Busy
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
-    AddEventsResponse addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
+    AddEventsResponse addEventsResponse = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
     assertEquals("serverTooBusy", addEventsResponse.getStatus());
     assertEquals(requestCount += EXPECTED_NUM_RETRIES, server.getRequestCount());
     assertEquals(EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
@@ -256,7 +255,7 @@ public class AddEventsClientTest {
     // Client Bad Request
     mockSleep.reset();
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_CLIENT_BAD_PARAM));
-    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
+    addEventsResponse = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
     assertEquals(AddEventsResponse.CLIENT_BAD_PARAM, addEventsResponse.getStatus());
     assertEquals(++requestCount, server.getRequestCount());
     assertEquals(0, mockSleep.sleepTime.get());
@@ -264,7 +263,7 @@ public class AddEventsClientTest {
     // Input too long
     mockSleep.reset();
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_INPUT_TOO_LONG));
-    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
+    addEventsResponse = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
     assertTrue(addEventsResponse.isSuccess());
     assertTrue(addEventsResponse.hasIgnorableError());
     assertFalse(addEventsResponse.isRetriable());
@@ -274,7 +273,7 @@ public class AddEventsClientTest {
     // Empty Response
     mockSleep.reset();
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(200).setBody(""));
-    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
+    addEventsResponse = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.SECONDS);
     assertEquals("emptyResponse", addEventsResponse.getStatus());
     assertEquals(requestCount + EXPECTED_NUM_RETRIES, server.getRequestCount());
     assertEquals(EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
@@ -283,7 +282,7 @@ public class AddEventsClientTest {
     // Doesn't actually hit MockHttpServer, so cannot advance MockableTimer.
     mockSleep.reset();
     addEventsClient = new AddEventsClient("http://localhost", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockSleep.sleep);
-    addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.MINUTES);
+    addEventsResponse = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.MINUTES);
     assertEquals("IOException", addEventsResponse.getStatus());
     assertEquals(EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
   }
@@ -299,11 +298,11 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
     // Send requests
-    List<Event> firstTestEvent = createTestEvents(1, 1, 1, 1);
+    List<Event> firstTestEvent = TestUtils.createTestEvents(1, 1, 1, 1);
     firstTestEvent.get(0).setMessage("First");
     CompletableFuture<AddEventsResponse> request1 = addEventsClient.log(firstTestEvent);
 
-    List<Event> secondTestEvent = createTestEvents(1, 1, 1, 1);
+    List<Event> secondTestEvent = TestUtils.createTestEvents(1, 1, 1, 1);
     secondTestEvent.get(0).setMessage("Second");
     CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(secondTestEvent, request1);
 
@@ -346,8 +345,8 @@ public class AddEventsClientTest {
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
-    CompletableFuture<AddEventsResponse> request1 = addEventsClient.log(createTestEvents(1, 1, 1, 1));
-    CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(createTestEvents(1, 1, 1, 1), request1);
+    CompletableFuture<AddEventsResponse> request1 = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1));
+    CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1), request1);
 
     AddEventsResponse addEventsResponse1 = request1.get(5, TimeUnit.SECONDS);
     AddEventsResponse addEventsResponse2 = request2.get(5, TimeUnit.SECONDS);
@@ -365,7 +364,7 @@ public class AddEventsClientTest {
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, 1, ADD_EVENTS_RETRY_DELAY_MS, compressor);
 
     CompletableFuture<AddEventsResponse> fakeSlowPendingRequest = new CompletableFuture<>();
-    CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(createTestEvents(1, 1, 1, 1), fakeSlowPendingRequest);
+    CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1), fakeSlowPendingRequest);
     AddEventsResponse addEventsResponse2 = request2.get(5, TimeUnit.SECONDS);
     assertFalse(addEventsResponse2.isSuccess());
     assertTrue(addEventsResponse2.getMessage().contains("TimeoutException"));
@@ -382,7 +381,7 @@ public class AddEventsClientTest {
 
     // Server Too Busy
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
-    AddEventsResponse addEventsResponse = addEventsClient.log(createTestEvents(1, 1, 1, 1)).get(ADD_EVENTS_TIMEOUT_MS, TimeUnit.SECONDS);
+    AddEventsResponse addEventsResponse = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1)).get(ADD_EVENTS_TIMEOUT_MS, TimeUnit.SECONDS);
     assertEquals("serverTooBusy", addEventsResponse.getStatus());
     assertEquals(EXPECTED_NUM_RETRIES, server.getRequestCount());
   }
@@ -428,7 +427,7 @@ public class AddEventsClientTest {
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
-    List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 
     assertEquals(0, server.getRequestCount());
@@ -442,7 +441,7 @@ public class AddEventsClientTest {
     assertEquals(0, server.getRequestCount());
 
     // Send next batch that is smaller than max payload size
-    events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     AddEventsResponse addEventsResponse = addEventsClient.log(events, initialAddEventsResponseFuture).get(5, TimeUnit.SECONDS);
     assertEquals(AddEventsResponse.SUCCESS, addEventsResponse.getStatus());
     assertEquals("success", addEventsResponse.getMessage());
@@ -476,7 +475,7 @@ public class AddEventsClientTest {
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
-    List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 
     assertEquals(0, server.getRequestCount());
@@ -490,7 +489,7 @@ public class AddEventsClientTest {
     assertEquals(0, server.getRequestCount());
 
     // Send next batch that is smaller than max payload size
-    events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+    events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     AddEventsResponse addEventsResponse = addEventsClient.log(events, initialAddEventsResponseFuture).get(5, TimeUnit.SECONDS);
     assertEquals(AddEventsResponse.SUCCESS, addEventsResponse.getStatus());
     assertEquals("success", addEventsResponse.getMessage());
@@ -503,7 +502,7 @@ public class AddEventsClientTest {
     RecordedRequest request = server.takeRequest();
 
     InputStream requestBodyInputStream = new BufferedInputStream(request.getBody().inputStream());
-    byte[] requestBody = IOUtils.readAllBytes(requestBodyInputStream);
+    byte[] requestBody = ByteStreams.toByteArray(requestBodyInputStream);
     byte[] decompressedRequestBody = addEventsClient.getDecompressedPayload(requestBody);
     Map<String, Object> parsedEvents = objectMapper.readValue(decompressedRequestBody, Map.class);
     validateEvents(events, parsedEvents);
@@ -529,7 +528,7 @@ public class AddEventsClientTest {
 
       // Create addEvents request
       AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
-      List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
+      List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
       addEventsClient.log(events);
 
       // Verify request
@@ -560,33 +559,6 @@ public class AddEventsClientTest {
     assertEquals("Keep-Alive", headers.get("Connection"));
     assertEquals(expectedUserAgent, headers.get("User-Agent"));
     assertEquals(compressor.getContentEncoding(), headers.get("Content-Encoding"));
-  }
-
-  /**
-   * Create `numEvents` Events with the specified `numServers`, `numLogFiles`, and `numParsers` values.
-   */
-  private List<Event> createTestEvents(int numEvents, int numServers, int numLogFiles, int numParsers) {
-    assertTrue(numParsers <= numLogFiles);
-    Random random = new Random();
-    return IntStream.range(0, numEvents)
-      .boxed()
-      .map(i -> {
-        final int logFileNum = random.nextInt(numLogFiles);
-        return new Event()
-          .setTopic(TestValues.TOPIC_VALUE)
-          .setPartition(0)
-          .setOffset(i)
-          .setMessage(TestValues.MESSAGE_VALUE)
-          .setParser(TestValues.PARSER_VALUE + logFileNum % numParsers)
-          .setLogfile(TestValues.LOGFILE_VALUE + logFileNum)
-          .setServerHost(TestValues.SERVER_VALUE + random.nextInt(numServers))
-          .setTimestamp(ScalyrUtil.nanoTime())
-          .addAdditionalAttr("app", "test")
-          .addAdditionalAttr("isTest", true)
-          .addAdditionalAttr("version", 2.3)
-          .setEnrichmentAttrs(ENRICHMENT_VALUE_MAP);
-      })
-      .collect(Collectors.toList());
   }
 
   /**

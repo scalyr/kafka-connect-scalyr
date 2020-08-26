@@ -227,7 +227,7 @@ public class ScalyrSinkTaskTest {
    * Verify that input too long error is ignored
    */
   @Test
-  public void testIgnoreInputTooLongError() {
+  public void testIgnoreInputTooLongError() throws Exception {
     TestUtils.MockSleep mockSleep = new TestUtils.MockSleep();
     this.scalyrSinkTask = new ScalyrSinkTask(mockSleep.sleep);
     MockWebServer server = new MockWebServer();
@@ -235,18 +235,20 @@ public class ScalyrSinkTaskTest {
     startTask(server);
 
     // Input too long error first request
-    server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_INPUT_TOO_LONG));
+    IntStream.range(0, 2).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_INPUT_TOO_LONG)));
     List<SinkRecord> records = TestUtils.createRecords(topic, partition, TestValues.MIN_BATCH_EVENTS, recordValue.apply(numServers, numLogFiles, numParsers));
     scalyrSinkTask.put(records);
+    scalyrSinkTask.flush(Collections.emptyMap());
     scalyrSinkTask.waitForRequestsToComplete();
-    assertEquals(1, server.getRequestCount());
+    assertEquals(2, server.getRequestCount());
     assertEquals(0, mockSleep.sleepTime.get());
 
     // Subsequent requests should succeed
     IntStream.range(0, 2).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)));
     scalyrSinkTask.put(records);
-    scalyrSinkTask.flush(new HashMap<>());
-    assertEquals(3, server.getRequestCount());
+    scalyrSinkTask.flush(Collections.emptyMap());
+    scalyrSinkTask.waitForRequestsToComplete();
+    assertEquals(4, server.getRequestCount());
   }
 
   /**
