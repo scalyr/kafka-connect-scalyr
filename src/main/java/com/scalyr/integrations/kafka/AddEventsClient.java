@@ -23,8 +23,10 @@ import com.fasterxml.jackson.databind.JsonSerializer;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;
 import com.google.common.collect.ImmutableList;
+import com.google.common.io.CountingOutputStream;
 import com.google.common.util.concurrent.RateLimiter;
 import com.google.common.util.concurrent.Uninterruptibles;
 import com.scalyr.api.internal.ScalyrUtil;
@@ -38,10 +40,13 @@ import org.apache.http.impl.client.CloseableHttpClient;
 import org.apache.http.impl.client.HttpClients;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import sun.misc.IOUtils;
 
 import javax.annotation.Nullable;
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
@@ -65,6 +70,9 @@ import java.util.function.LongConsumer;
 public class AddEventsClient implements AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(AddEventsClient.class);
+
+  // Separate logger which is used for logging the whole payload when the payload exceeds the limit
+  private static final Logger payloadLogger = LoggerFactory.getLogger("com.scalyr.integrations.kafka.eventpayload");
 
   private final CloseableHttpClient client = HttpClients.createDefault();
   private final ObjectMapper objectMapper = new ObjectMapper();
@@ -154,7 +162,12 @@ public class AddEventsClient implements AutoCloseable {
         .setEvents(events);
 
       outputStream.reset();
-      addEventsRequest.writeJson(compressor.newStreamCompressor(outputStream));
+
+      // NOTE: We use countingStream since we also need access to the raw serialized payload size before the compression
+      CountingOutputStream countingStream = new CountingOutputStream(compressor.newStreamCompressor(outputStream));
+      addEventsRequest.writeJson(countingStream);
+
+      long uncompressedPayloadSize = countingStream.getCount();
 
       // Wait for dependent addEvents call to complete and return dependent failed future if failed
       if (dependentAddEvents != null && !dependentAddEvents.get(remainingMs(startTimeMs), TimeUnit.MILLISECONDS).isSuccess()) {
@@ -163,7 +176,7 @@ public class AddEventsClient implements AutoCloseable {
       }
 
       final byte[] addEventsPayload = outputStream.toByteArray();
-      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, startTimeMs), senderThread);
+      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, uncompressedPayloadSize, startTimeMs), senderThread);
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
       CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture<>();
@@ -181,18 +194,26 @@ public class AddEventsClient implements AutoCloseable {
 
   /**
    * Call Scalyr addEvents API with {@link #addEventsTimeoutMs} using exponential backoff.
-   * @param addEventsPayload byte[] addEvents payload
+   * @param addEventsPayload byte[] addEvents payload (post compression if compression is enabled).
+   * @param uncompressedPayloadSize long raw serialized JSON addEvents payload size before the compression.
    * @param startTimeMs time in ms from epoch when `log` is called.  Used to enforce `addEventsTimeoutMs` deadline.
    * @return AddEventsResponse
    */
-  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long startTimeMs) {
+  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long uncompressedPayloadSize, long startTimeMs) {
     log.debug("addEvents payload size {} bytes", addEventsPayload.length);
 
     // 6 MB add events payload exceeded.  Log the issue and skip this message.
-    if (addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
-      log.error("Add events payload size {} exceeds maximum size.  Skipping this add events request.  Log data will be lost", addEventsPayload.length);
+    if (uncompressedPayloadSize > MAX_ADD_EVENTS_PAYLOAD_BYTES || addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
+      // NOTE: compressed size should never really be larger than uncompressed size unless there is a pathological case
+      // and we are trying to compress fully random uncompressable data
+      log.error("Uncompressed add events payload size {} bytes (compressed {} bytes) exceeds maximum size ({} bytes).  Skipping this add events request.  Log data will be lost",
+        uncompressedPayloadSize, addEventsPayload.length, MAX_ADD_EVENTS_PAYLOAD_BYTES);
+
       if (payloadTooLargeLogRateLimiter.tryAcquire()) {
-        log.error("Add events too large payload: {}", new String(addEventsPayload));
+        // NOTE: If compression is enabled, we need to decompress the compressed payload so we can log the raw
+        // uncompressed value
+        byte[] decompressedPayload = getDecompressedPayload(addEventsPayload);
+        payloadLogger.error("Add events too large payload: {}", new String(decompressedPayload));
       }
       return PAYLOAD_TOO_LARGE;
     }
@@ -263,6 +284,27 @@ public class AddEventsClient implements AutoCloseable {
       log.error("Could not parse addEvents response", e);
       return new AddEventsResponse().setStatus("parseResponseFailed");
     }
+  }
+
+  /**
+   * This method takes (potentially) compressed addEventsPayload and if it's compressed, it decompresses it and returns
+   * a decompressed version. It ignores any exceptions which may arise when trying to decompress the payload.
+   *
+   * @param addEventsPayload  byte[] addEvents payload (post compression if compression is enabled).
+   * @return Decompressed payload byte array.
+   */
+  @VisibleForTesting
+  byte[] getDecompressedPayload(byte[] addEventsPayload) {
+    byte[] decompressedPayload = "unable to decompress the payload".getBytes();
+    try {
+      try (InputStream inputStream = compressor.newStreamDecompressor(new ByteArrayInputStream(addEventsPayload))) {
+        decompressedPayload = IOUtils.readAllBytes(inputStream);
+      }
+    } catch (Exception ex) {
+      // NOTE: Failing to decompress the payload should not be fatal
+    }
+
+    return decompressedPayload;
   }
 
   /**
