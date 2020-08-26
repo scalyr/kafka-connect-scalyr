@@ -26,19 +26,19 @@ import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.http.entity.ContentType;
+import org.apache.log4j.Level;
+import org.apache.log4j.LogManager;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 import sun.misc.IOUtils;
-import sun.nio.ch.IOUtil;
 
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
@@ -100,6 +100,9 @@ public class AddEventsClientTest {
     scalyrUrl = server.url("/").toString();
     this.compressor = CompressorFactory.getCompressor(CompressorFactory.NONE, null);
     this.deflateCompressor = CompressorFactory.getCompressor(CompressorFactory.DEFLATE, 3);
+
+    // We disable payload logging so we don't get very large raw payload messages in the log output
+    LogManager.getLogger("com.scalyr.integrations.kafka.eventpayload").setLevel(Level.OFF);
   }
 
   @After
@@ -425,7 +428,6 @@ public class AddEventsClientTest {
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
-    addEventsClient.logEventPayloadsOnPayloadTooLarge = false;
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 
@@ -474,7 +476,6 @@ public class AddEventsClientTest {
 
     // Create addEvents request
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
-    addEventsClient.logEventPayloadsOnPayloadTooLarge = false;
     List<Event> events = createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 

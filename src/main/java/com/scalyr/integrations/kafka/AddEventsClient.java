@@ -71,6 +71,9 @@ public class AddEventsClient implements AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(AddEventsClient.class);
 
+  // Separate logger which is used for logging the whole payload when the payload exceeds the limit
+  private static final Logger payloadLogger = LoggerFactory.getLogger("com.scalyr.integrations.kafka.eventpayload");
+
   private final CloseableHttpClient client = HttpClients.createDefault();
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final ExecutorService senderThread = Executors.newSingleThreadExecutor();
@@ -107,12 +110,6 @@ public class AddEventsClient implements AutoCloseable {
    * since it will be rejected by the server.  Success is returned to the caller so it won't be retried.
    */
   private static final AddEventsResponse PAYLOAD_TOO_LARGE = new AddEventsResponse().setStatus(AddEventsResponse.SUCCESS).setMessage("Skipped due to payload too large");
-
-  /**
-   * True to log actual event payloads in the "payload too large" log messages.
-   * Usually it's set to false during tests to avoid logging many very large payloads.
-   */
-  protected boolean logEventPayloadsOnPayloadTooLarge = true;
 
   /**
    * Limit number of add events payloads that are logged when MAX_ADD_EVENTS_PAYLOAD_BYTES is exceeded
@@ -212,11 +209,11 @@ public class AddEventsClient implements AutoCloseable {
       log.error("Uncompressed add events payload size {} bytes (compressed {} bytes) exceeds maximum size ({} bytes).  Skipping this add events request.  Log data will be lost",
         uncompressedPayloadSize, addEventsPayload.length, MAX_ADD_EVENTS_PAYLOAD_BYTES);
 
-      if (logEventPayloadsOnPayloadTooLarge && payloadTooLargeLogRateLimiter.tryAcquire()) {
+      if (payloadTooLargeLogRateLimiter.tryAcquire()) {
         // NOTE: If compression is enabled, we need to decompress the compressed payload so we can log the raw
         // uncompressed value
         byte[] decompressedPayload = getDecompressedPayload(addEventsPayload);
-        log.error("Add events too large payload: {}", new String(decompressedPayload));
+        payloadLogger.error("Add events too large payload: {}", new String(decompressedPayload));
       }
       return PAYLOAD_TOO_LARGE;
     }
