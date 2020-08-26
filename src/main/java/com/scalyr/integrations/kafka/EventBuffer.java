@@ -1,5 +1,7 @@
 package com.scalyr.integrations.kafka;
 
+import com.google.common.base.Strings;
+
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -8,18 +10,24 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Buffer for Events to send larger addEvents batch size.
- * Includes estimation of serialized AddEvent payload bytes.
+ * Buffer estimates serialized AddEvent payload bytes taking into account per event size and server attribute sizes.
  */
 public class EventBuffer {
   private final List<Event> eventBuffer = new ArrayList<>(2000);
   private final AtomicInteger estimatedSerializedBytes = new AtomicInteger();
-  // Unique session attributes used for estimating serialized bytes
-  private final Set<String> sessionAttributes = new HashSet<>();
+  // Events with unique server level attributes (serverHost, logfile, parser) used for estimating server attr serialized bytes
+  private final Set<Event> serverAttributes = new HashSet<>();
+
+  // Enrichment attrs are the same for all events, so we cache this
+  private int cachedEnrichmentAttrSize = 0;
+
+  // Estimated per server attribute entry overhead: {"id":"999","attrs":{"source":"","logfile":"","parser":""}
+  private static final int SERVER_ATTR_SERIALIZATION_OVERHEAD_BYTES = 60;
 
   public void addEvent(Event event) {
     eventBuffer.add(event);
     estimatedSerializedBytes.addAndGet(event.estimatedSerializedBytes());
-    updateSessionAttrSize(event);
+    updateServerAttrSize(event);
   }
 
   /**
@@ -48,22 +56,39 @@ public class EventBuffer {
    */
   public void clear() {
     eventBuffer.clear();
-    sessionAttributes.clear();
+    serverAttributes.clear();
     estimatedSerializedBytes.set(0);
   }
 
   /**
    * Update estimated msgSize with session attributes
    */
-  private void updateSessionAttrSize(Event event) {
-    updateSessionAttrSize(event.getLogfile());
-    updateSessionAttrSize(event.getParser());
-    updateSessionAttrSize(event.getServerHost());
+  private void updateServerAttrSize(Event event) {
+    if (serverAttributes.add(event)) {
+      updateServerAttrSize(event.getLogfile());
+      updateServerAttrSize(event.getParser());
+      updateServerAttrSize(event.getServerHost());
+      estimatedSerializedBytes.addAndGet(SERVER_ATTR_SERIALIZATION_OVERHEAD_BYTES);
+      estimatedSerializedBytes.addAndGet(getEnrichmentAttrSize(event));
+    }
   }
 
-  private void updateSessionAttrSize(String sessionAttr) {
-    if (sessionAttributes.add(sessionAttr)) {
-      estimatedSerializedBytes.addAndGet(sessionAttr.length());
+  private void updateServerAttrSize(String serverAttr) {
+    if (!Strings.isNullOrEmpty(serverAttr)) {
+      estimatedSerializedBytes.addAndGet(serverAttr.length());
     }
+  }
+
+  private int getEnrichmentAttrSize(Event event) {
+    if (cachedEnrichmentAttrSize > 0) {
+      return cachedEnrichmentAttrSize;
+    }
+    if (event.getEnrichmentAttrs() == null || event.getEnrichmentAttrs().isEmpty()) {
+      return 0;
+    }
+
+    cachedEnrichmentAttrSize = event.getEnrichmentAttrs().entrySet().stream()
+      .mapToInt(entry -> entry.getKey().length() + (entry.getValue() == null ? 0 : entry.getValue().length())).sum();
+    return cachedEnrichmentAttrSize;
   }
 }

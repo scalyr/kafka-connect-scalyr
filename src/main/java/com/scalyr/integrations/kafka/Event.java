@@ -22,6 +22,7 @@ import com.google.common.base.Strings;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * Abstraction for a Scalyr Event.
@@ -52,11 +53,15 @@ public class Event {
   // Cached estimated event size
   private int estimatedSizeBytes;
 
-  // Estimated per event serialization overhead: 16 bytes add events JSON format, 16 bytes timestamp, 16 bytes Kafka offset
-  private static final int EVENT_SERIALIZATION_OVERHEAD_BYTES = 48;
+  // Estimated per event serialization overhead: 58 bytes add events JSON format, 19 bytes timestamp, 16 bytes Kafka offset
+  // {"ts":,"si":"","sn":,"attrs":{"message":""},"log":"999"},
+  private static final int EVENT_SERIALIZATION_OVERHEAD_BYTES = 93;
 
   // Used for estimating JSON encoded String length
   private static final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();
+
+  // Cached StringBuilder used for estimating escaped JSON String length
+  private static final AtomicReference<StringBuilder> jsonStringBuilder = new AtomicReference<>();
 
   // Setters
   public Event setTopic(String topic) {
@@ -181,15 +186,16 @@ public class Event {
 
     if (getAdditionalAttrs() != null) {
       size += getAdditionalAttrs().entrySet().stream()
-        .mapToInt(entry -> entry.getKey().length() + (entry.getValue() == null ? 0 : entry.getValue().toString().length())).sum();
+        .mapToInt(entry -> entry.getKey().length() + (entry.getValue() == null ? 0 : estimateEscapedStringSize(entry.getValue().toString()))).sum();
     }
     estimatedSizeBytes = size;
     return estimatedSizeBytes;
   }
 
   /**
-   * Estimate the escaped String length.
-   * If it String JSON, calculate the quoted String length.
+   * Estimate the escaped String length for JSON strings.
+   * JSON payload requires extra escaping which needs to be taken into the size estimate.
+   *
    * If it is not JSON, then use the String length as the estimate.
    * This trades off some inaccuracies where the String may contain quotable characters for faster performance.
    * @return Estimated escaped String size
@@ -201,8 +207,15 @@ public class Event {
     if (s.length() < 2) {
       return s.length();
     }
+
     if (s.charAt(0) == '{' && s.charAt(s.length() - 1) == '}') {
-      StringBuilder sb = new StringBuilder(s.length() + 20);
+      StringBuilder sb = jsonStringBuilder.get();
+      if (sb == null) {
+        sb = new StringBuilder(s.length() + 20);
+        jsonStringBuilder.compareAndSet(null, sb);
+      }
+      sb.setLength(0);
+
       jsonStringEncoder.quoteAsString(s, sb);
       return sb.length();
     }
