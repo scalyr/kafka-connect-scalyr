@@ -224,7 +224,7 @@ public class Event {
 
   private int countJsonEscapedCharacters(String s) {
     return (int)IntStream.range(0, s.length())
-      .mapToObj(i -> s.charAt(i))
+      .mapToObj(s::charAt)
       .filter(JSON_ESCAPED_CHARS::contains)
       .count();
   }
