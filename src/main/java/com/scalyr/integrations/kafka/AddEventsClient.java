@@ -200,7 +200,7 @@ public class AddEventsClient implements AutoCloseable {
    * @return AddEventsResponse
    */
   private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long uncompressedPayloadSize, long startTimeMs) {
-    log.debug("addEvents payload size {} bytes", addEventsPayload.length);
+    log.debug("addEvents payload uncompressed size {} bytes, compressed size {} bytes", uncompressedPayloadSize, addEventsPayload.length);
 
     // 6 MB add events payload exceeded.  Log the issue and skip this message.
     if (uncompressedPayloadSize > MAX_ADD_EVENTS_PAYLOAD_BYTES || addEventsPayload.length > MAX_ADD_EVENTS_PAYLOAD_BYTES) {
