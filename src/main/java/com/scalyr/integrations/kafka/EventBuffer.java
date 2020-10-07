@@ -21,8 +21,8 @@ public class EventBuffer {
   // Enrichment attrs are the same for all events, so we cache this
   private int cachedEnrichmentAttrSize = 0;
 
-  // Estimated per server attribute entry overhead: {"id":"999","attrs":{"source":"","logfile":"","parser":""}
-  private static final int SERVER_ATTR_SERIALIZATION_OVERHEAD_BYTES = 60;
+  // Estimated per server attribute entry overhead: {"id":"999","attrs":{"serverHost":"","logfile":"","parser":""}
+  private static final int SERVER_ATTR_SERIALIZATION_OVERHEAD_BYTES = 63;
 
   public void addEvent(Event event) {
     eventBuffer.add(event);

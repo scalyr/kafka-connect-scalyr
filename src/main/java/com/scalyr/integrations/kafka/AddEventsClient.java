@@ -456,7 +456,7 @@ public class AddEventsClient implements AutoCloseable {
       jsonGenerator.writeObjectFieldStart("attrs");
 
       if (event.getServerHost() != null) {
-        jsonGenerator.writeStringField("source", event.getServerHost());
+        jsonGenerator.writeStringField("serverHost", event.getServerHost());
       }
       if (event.getLogfile() != null) {
         jsonGenerator.writeStringField("logfile", event.getLogfile());
