@@ -21,8 +21,8 @@ public class EventBuffer {
   // Enrichment attrs are the same for all events, so we cache this
   private int cachedEnrichmentAttrSize = 0;
 
-  // Estimated per server attribute entry overhead: {"id":"999","attrs":{"source":"","logfile":"","parser":""}
-  private static final int SERVER_ATTR_SERIALIZATION_OVERHEAD_BYTES = 60;
+  // Estimated per server attribute entry overhead: {"id":"999","attrs":{"serverHost":"","source":"","logfile":"","parser":""}
+  private static final int SERVER_ATTR_SERIALIZATION_OVERHEAD_BYTES = 75;
 
   public void addEvent(Event event) {
     eventBuffer.add(event);
@@ -67,7 +67,8 @@ public class EventBuffer {
     if (serverAttributes.add(event)) {
       updateServerAttrSize(event.getLogfile());
       updateServerAttrSize(event.getParser());
-      updateServerAttrSize(event.getServerHost());
+      updateServerAttrSize(event.getServerHost());  // serverHost as serverHost
+      updateServerAttrSize(event.getServerHost());  // serverHost as source
       estimatedSerializedBytes.addAndGet(SERVER_ATTR_SERIALIZATION_OVERHEAD_BYTES);
       estimatedSerializedBytes.addAndGet(getEnrichmentAttrSize(event));
     }
