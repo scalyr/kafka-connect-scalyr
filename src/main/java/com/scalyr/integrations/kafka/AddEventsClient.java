@@ -458,6 +458,10 @@ public class AddEventsClient implements AutoCloseable {
       if (event.getServerHost() != null) {
         jsonGenerator.writeStringField("serverHost", event.getServerHost());
       }
+      // virtual session splitting uses source for the serverHost
+      if (event.getServerHost() != null) {
+        jsonGenerator.writeStringField("source", event.getServerHost());
+      }
       if (event.getLogfile() != null) {
         jsonGenerator.writeStringField("logfile", event.getLogfile());
       }
