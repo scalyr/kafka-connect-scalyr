@@ -78,7 +78,7 @@ public class AddEventsClientTest {
   private static final String ID = "id";
   private static final String MESSAGE = "message";
   private static final String PARSER = "parser";
-  private static final String SERVERHOST = "serverHost";
+  private static final String SERVERHOST = "__origServerHost";
   private static final String LOGFILE = "logfile";
 
   private static final int numServers = 5;
