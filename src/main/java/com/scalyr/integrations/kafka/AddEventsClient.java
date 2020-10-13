@@ -456,7 +456,7 @@ public class AddEventsClient implements AutoCloseable {
       jsonGenerator.writeObjectFieldStart("attrs");
 
       // __origServerHost is a stream identifier that is used to create a virtual session
-      // __origServerHost event attr will be promoted to serverHost session attr
+      // __origServerHost event attr will be promoted to serverHost session attr on the server
       if (event.getServerHost() != null) {
         jsonGenerator.writeStringField("__origServerHost", event.getServerHost());
       }
