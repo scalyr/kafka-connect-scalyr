@@ -146,14 +146,14 @@ def check_event_attrs(attrs):
 # {"sess_d5952fdd-eed2-45f1-8106-b2f2af55dabd": { "serverHost": "some.host.name", "parser":"accesslog"} }
 def check_session_attrs(sessions):
     DEFAULT_SOURCE = "Kafka-logs"
-    expected_attrs = ['parser', 'source']
+    expected_attrs = ['parser', 'serverHost']
     for session_attrs in sessions.values():
         is_valid_session_attrs = all (k in session_attrs for k in expected_attrs)
         if not is_valid_session_attrs:
             print("Did not get expected attributes {0}.  Query returned attributes {1}".format(expected_attrs, session_attrs))
             break
-        if session_attrs['source'] == DEFAULT_SOURCE:
-            print("source should not be default value {0}.  Check event mappings".format(DEFAULT_SOURCE))
+        if session_attrs['serverHost'] == DEFAULT_SOURCE:
+            print("serverHost should not be default value {0}.  Check event mappings".format(DEFAULT_SOURCE))
             is_valid_session_attrs = False
 
     return is_valid_session_attrs

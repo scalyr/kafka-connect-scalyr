@@ -78,7 +78,7 @@ public class AddEventsClientTest {
   private static final String ID = "id";
   private static final String MESSAGE = "message";
   private static final String PARSER = "parser";
-  private static final String SERVERHOST = "serverHost";
+  private static final String ORIG_SERVERHOST = "__origServerHost";
   private static final String LOGFILE = "logfile";
 
   private static final int numServers = 5;
@@ -595,7 +595,7 @@ public class AddEventsClientTest {
 
     // Verify log level attrs
     Map logLevelAttrs = (Map) logIdAttrs.get(logId);
-    assertEquals(origEvent.getServerHost(), logLevelAttrs.get(SERVERHOST));
+    assertEquals(origEvent.getServerHost(), logLevelAttrs.get(ORIG_SERVERHOST));
     assertEquals(origEvent.getLogfile(), logLevelAttrs.get(LOGFILE));
     assertEquals(origEvent.getParser(), logLevelAttrs.get(PARSER));
     if (origEvent.getEnrichmentAttrs() != null) {
