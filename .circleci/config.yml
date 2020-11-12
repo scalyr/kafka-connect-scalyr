@@ -6,7 +6,7 @@ version: 2.1
 parameters:
   scalyr_sink_version: # scalyr_sink_version needs to be updated on every new version release.
     type: string
-    default: "0.1"
+    default: "1.0"
 
 jobs: # a collection of steps
   build: # runs not using Workflows must have a `build` job as entry point
