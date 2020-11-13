@@ -51,7 +51,6 @@ jobs: # a collection of steps
           name: System Test
           command: |
             set -x
-            VERSION=<< pipeline.parameters.scalyr_sink_version >>
             docker-compose up -d
             docker-compose ps
 
