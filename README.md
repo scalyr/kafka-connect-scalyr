@@ -10,7 +10,7 @@ which is a Kafka Connect Sink Connector that allows streaming log messages from 
 ```
 mvn clean package
 ```
-Kafka Connect Scalyr will be packaged as a zip file in `target/components/packages/scalyr-kafka-connect-scalyr-sink-0.1.zip`.
+Kafka Connect Scalyr will be packaged as a zip file in `target/components/packages/scalyr-kafka-connect-scalyr-sink-<version>.zip`.
 
 ## Installation
 

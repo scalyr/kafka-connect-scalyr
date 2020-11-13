@@ -180,6 +180,30 @@
                 </executions>
             </plugin>
             <plugin>
+                <!-- Creates a symlink from kafka-connect-scalyr-sink-<version>-package to kafka-connect-scalyr-sink-latest-package
+                    since Dockerfile relies on a fixed name. -->
+                <artifactId>exec-maven-plugin</artifactId>
+                <groupId>org.codehaus.mojo</groupId>
+                <version>1.6.0</version>
+                <executions>
+                    <execution>
+                        <id>Latest Package Symlink</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>exec</goal>
+                        </goals>
+                        <configuration>
+                            <executable>ln</executable>
+                            <arguments>
+                                <argument>-fnsv</argument>
+                                <argument>${project.artifactId}-${project.version}-package</argument>
+                                <argument>target/${project.artifactId}-latest-package</argument>
+                            </arguments>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-checkstyle-plugin</artifactId>
                 <version>3.0.0</version>
