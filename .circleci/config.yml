@@ -97,10 +97,7 @@ workflows:
   version: 2
   build-and-deploy:
     jobs:
-      - build:
-          filters:
-            tags:
-              only: /.*/
+      - build
 
       - publish-github-release:
           requires:
