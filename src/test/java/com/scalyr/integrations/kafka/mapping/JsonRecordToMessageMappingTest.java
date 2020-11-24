@@ -1,6 +1,6 @@
 package com.scalyr.integrations.kafka.mapping;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
+import com.scalyr.integrations.kafka.TestUtils;
 import com.scalyr.integrations.kafka.TestValues;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
@@ -20,7 +20,6 @@ import static org.junit.Assert.fail;
  */
 public class JsonRecordToMessageMappingTest {
   private static final AtomicInteger offset = new AtomicInteger();
-  private ObjectMapper objectMapper = new ObjectMapper();
   private MessageMapper messageMapper;
   private SinkRecordValueCreator sinkRecordValueCreator;
 
@@ -67,14 +66,10 @@ public class JsonRecordToMessageMappingTest {
     // Verify message field, which should contain the entire record value serialized to JSON
     if (record.value() instanceof Map) {
       // Schemaless record value
-      assertEquals(objectMapper.writeValueAsString(record.value()), messageMapper.getMessage(record));
+      TestUtils.verifyMap((Map)record.value(), messageMapper.getMessage(record));
     } else if (record.value() instanceof Struct){
       // Schema record value
-      // Can't easily serialize a Struct to JSON without calling the same code that did the serialization.
-      // To verify, we check that the message field contains valid JSON by parsing the serialized JSON in the Event message
-      // and verify that the parsed JSON contains the original message field.
-      final Map<String, Object> messageJson = objectMapper.readValue(messageMapper.getMessage(record), Map.class);
-      assertEquals(TestValues.MESSAGE_VALUE, messageJson.get("message"));
+      TestUtils.verifyStruct((Struct)record.value(), messageMapper.getMessage(record));
     } else {
       fail("Invalid record value");
     }

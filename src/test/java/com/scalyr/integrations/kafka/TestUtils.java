@@ -16,6 +16,7 @@
 
 package com.scalyr.integrations.kafka;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.CustomAppMessageMapperTest;
@@ -24,8 +25,12 @@ import com.scalyr.integrations.kafka.mapping.SinkRecordValueCreator;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.Field;
+import org.apache.kafka.connect.data.Schema;
+import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 
+import java.io.IOException;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -42,6 +47,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
@@ -49,6 +55,8 @@ import static org.junit.Assert.fail;
  * Common Utility methods for tests
  */
 public class TestUtils {
+
+  private static final ObjectMapper objectMapper = new ObjectMapper();
 
   /**
    * Create a Map<String, String> of of String[] key/value pairs
@@ -66,12 +74,34 @@ public class TestUtils {
   }
 
   /**
-   * Verify two maps contain the same values.
+   * Verify serialized Map JSON contains expected values
    */
-  public static void verifyMap(Map<String, String> expected, Map<String, String> actual) {
-    assertEquals(expected.size(), actual.size());
-    assertEquals(expected.keySet(), actual.keySet());
-    expected.keySet().forEach(key -> assertEquals(expected.get(key), actual.get(key)));
+  public static void verifyMap(Map<String, String> expected, String serializedMapJson) throws IOException {
+    final Map<String, Object> mapValues = objectMapper.readValue(serializedMapJson, Map.class);
+    assertEquals(expected, mapValues);
+  }
+
+  /**
+   * Verifies Struct serialized to JSON contains the correct Struct values.
+   * @param structValues Original Struct that is serialized to JSON
+   * @param serializedStructJson Serialized Struct JSON
+   */
+  public static void verifyStruct(Struct structValues, String serializedStructJson) throws IOException {
+    final Map<String, Object> mapValues = objectMapper.readValue(serializedStructJson, Map.class);
+    verifyStruct(structValues, mapValues);
+  }
+
+  public static void verifyStruct(Struct structValues, Map<String, Object> mapValues) {
+    final List<Field> fields = structValues.schema().fields();
+    assertFalse(fields.isEmpty());
+    for (Field field : fields) {
+      assertTrue(mapValues.containsKey(field.name()));
+      if (field.schema().type() == Schema.Type.STRUCT) {
+        verifyStruct(structValues.getStruct(field.name()), (Map)mapValues.get(field.name()));
+      } else {
+        assertEquals(structValues.get(field.name()), mapValues.get(field.name()));
+      }
+    }
   }
 
   /**
@@ -177,9 +207,10 @@ public class TestUtils {
 
   public static List<SinkRecord> createRecords(String topic, int partition, int numRecords, Object recordValue) {
     AtomicInteger offset = new AtomicInteger();
+    final Schema valueSchema = recordValue instanceof Struct ? ((Struct)recordValue).schema() : null;
     return IntStream.range(0, numRecords)
       .boxed()
-      .map(i -> new SinkRecord(topic, partition, null, null, null, recordValue, offset.getAndIncrement(), ScalyrUtil.currentTimeMillis(), TimestampType.CREATE_TIME))
+      .map(i -> new SinkRecord(topic, partition, null, null, valueSchema, recordValue, offset.getAndIncrement(), ScalyrUtil.currentTimeMillis(), TimestampType.CREATE_TIME))
       .collect(Collectors.toList());
   }
 

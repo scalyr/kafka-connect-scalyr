@@ -79,7 +79,7 @@ public class ScalyrSinkConnectorTest {
     scalyrSinkConnector.start(config);
     List<Map<String, String>> taskConfigs = scalyrSinkConnector.taskConfigs(numTaskConfigs);
     assertEquals(numTaskConfigs, taskConfigs.size());
-    taskConfigs.forEach(taskConfig -> TestUtils.verifyMap(config, taskConfig));
+    taskConfigs.forEach(taskConfig -> assertEquals(config, taskConfig));
   }
 
   /**

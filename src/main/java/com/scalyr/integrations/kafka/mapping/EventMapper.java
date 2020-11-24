@@ -41,14 +41,16 @@ public class EventMapper {
   private static final List<MessageMapper> DEFAULT_MAPPERS = ImmutableList.of(new FilebeatMessageMapper());
   private static final List<MessageMapper> messageMappers = new ArrayList<>();
   private final Map<String, String> enrichmentAttrs;
+  private final boolean sendEntireRecord;
   private static final RateLimiter noEventMapperLogRateLimiter = RateLimiter.create(1.0/30);  // 1 permit every 30 seconds to not log
   @VisibleForTesting static final String DEFAULT_PARSER = "kafkaParser";
 
   /**
    * @param enrichmentAttrs Map<String, String> of enrichment key/value pairs
    */
-  public EventMapper(Map<String, String> enrichmentAttrs, List<CustomAppEventMapping> customAppEventMappings) {
+  public EventMapper(Map<String, String> enrichmentAttrs, List<CustomAppEventMapping> customAppEventMappings, boolean sendEntireRecord) {
     this.enrichmentAttrs = enrichmentAttrs;
+    this.sendEntireRecord = sendEntireRecord;
     if (customAppEventMappings != null) {
       log.info("Adding custom event mappers {}", customAppEventMappings);
       customAppEventMappings.forEach(customAppEventMapping -> messageMappers.add(new CustomAppMessageMapper(customAppEventMapping)));
@@ -104,8 +106,14 @@ public class EventMapper {
    * @return MessageMapper for the SinkRecord value
    */
   private Optional<MessageMapper> getMessageMapper(SinkRecord sinkRecord) {
-    return messageMappers.stream()
+    final Optional<MessageMapper> messageMapper = messageMappers.stream()
       .filter(mapper -> mapper.matches(sinkRecord))
       .findFirst();
+
+    if (!messageMapper.isPresent() || !sendEntireRecord) {
+      return messageMapper;
+    }
+
+    return Optional.of(new JsonRecordToMessageMapping(messageMapper.get()));
   }
 }
