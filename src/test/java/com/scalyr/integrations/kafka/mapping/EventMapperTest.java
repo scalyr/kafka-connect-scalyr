@@ -21,6 +21,7 @@ import com.scalyr.integrations.kafka.Event;
 import com.scalyr.integrations.kafka.TestUtils;
 import com.scalyr.integrations.kafka.TestValues;
 import org.apache.kafka.common.record.TimestampType;
+import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
@@ -37,9 +38,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNull;
+import static org.junit.Assert.fail;
 
 /**
  * Test for EventMapper
@@ -55,22 +58,25 @@ public class EventMapperTest {
 
   private final Supplier<Object> recordValue;
   private final Map<String, String> enrichmentAttrs;
+  private final boolean sendEntireRecord;
   private EventMapper eventMapper;
 
   /**
-   * Create test parameters for each SinkRecordValueCreator type and testEnrichmentAttrs combination.
-   * Object[] = {Supplier<Object> recordValue, List<String> enrichmentAttr}
+   * Create test parameters for each SinkRecordValueCreator type, testEnrichmentAttrs, and sendEntireRecord combination.
+   * Object[] = {Supplier<Object> recordValue, List<String> enrichmentAttr, sendEntireRecord boolean}
    */
   @Parameterized.Parameters
   public static Collection<Object[]> testParams() {
     return TestUtils.singleRecordValueTestParams().stream()
-      .flatMap(recordValue -> testEnrichmentAttrs.stream().map(enrichmentAttrs -> new Object[] {recordValue[0], enrichmentAttrs}))
+      .flatMap(recordValue -> testEnrichmentAttrs.stream().flatMap(enrichmentAttrs ->
+        Stream.of(new Object[] {recordValue[0], enrichmentAttrs, false}, new Object[] {recordValue[0], enrichmentAttrs, true})))
       .collect(Collectors.toList());
   }
 
-  public EventMapperTest(Supplier<Object> recordValue, Map<String, String> enrichmentAttrs) {
+  public EventMapperTest(Supplier<Object> recordValue, Map<String, String> enrichmentAttrs, boolean sendEntireRecord) {
     this.recordValue = recordValue;
     this.enrichmentAttrs = enrichmentAttrs;
+    this.sendEntireRecord = sendEntireRecord;
 
     // Print test params
     Object data = recordValue.get();
@@ -80,20 +86,22 @@ public class EventMapperTest {
 
   @Before
   public void setup() throws IOException {
-    this.eventMapper = new EventMapper(enrichmentAttrs, CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON));
+    this.eventMapper = new EventMapper(enrichmentAttrs, CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON), sendEntireRecord);
   }
 
   /**
    * Test EventMapper with no timestamp in SinkRecord
    */
   @Test
-  public void createEventNoTimestampTest() {
+  public void createEventNoTimestampTest() throws Exception {
     // Without timestamp
     final long nsFromEpoch = ScalyrUtil.NANOS_PER_SECOND;  // 1 second after epoch
     ScalyrUtil.setCustomTimeNs(nsFromEpoch);
-    SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, recordValue.get(), offset.getAndIncrement());
+    Object value = recordValue.get();
+    Schema valueSchema = value instanceof Struct ? ((Struct)value).schema() : null;
+    SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, valueSchema, value, offset.getAndIncrement());
     Event event = eventMapper.createEvent(sinkRecord);
-    validateEvent(event);
+    validateEvent(event, value);
     assertEquals(nsFromEpoch, event.getTimestamp());
   }
 
@@ -101,12 +109,14 @@ public class EventMapperTest {
    * Test EventMapper with timestamp in SinkRecord
    */
   @Test
-  public void createEventWithTimestampTest() {
+  public void createEventWithTimestampTest() throws Exception {
     // With timestamp
     final long msSinceEpoch = 60 * 1000;  // 1 minute after epoch
-    SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, null, recordValue.get(), offset.getAndIncrement(), msSinceEpoch, TimestampType.CREATE_TIME);
+    Object value = recordValue.get();
+    Schema valueSchema = value instanceof Struct ? ((Struct)value).schema() : null;
+    SinkRecord sinkRecord = new SinkRecord(topic, partition, null, null, valueSchema, value, offset.getAndIncrement(), msSinceEpoch, TimestampType.CREATE_TIME);
     Event event = eventMapper.createEvent(sinkRecord);
-    validateEvent(event);
+    validateEvent(event, value);
     assertEquals(msSinceEpoch * ScalyrUtil.NANOS_PER_MS, event.getTimestamp());
   }
 
@@ -139,18 +149,30 @@ public class EventMapperTest {
   /**
    * Validate Scalyr event matches SinkRecord
    */
-  private void validateEvent(Event event) {
+  private void validateEvent(Event event, Object recordValue) throws Exception {
     assertEquals(TestValues.SERVER_VALUE + "0", event.getServerHost());
-    assertEquals(TestValues.MESSAGE_VALUE, event.getMessage());
     assertEquals(topic, event.getTopic());
     assertEquals(partition, event.getPartition());
     assertEquals(offset.get() - 1, event.getOffset());
     assertEquals(enrichmentAttrs, event.getEnrichmentAttrs());
+    validateMessage(event, recordValue);
 
     if (event.getLogfile().equals(TestValues.CUSTOM_APP_NAME)) {
       validateCustomAppFields(event);
     } else {
       validateFilebeatFields(event);
+    }
+  }
+
+  private void validateMessage(Event event, Object recordValue) throws Exception {
+    if (!sendEntireRecord) {
+      assertEquals(TestValues.MESSAGE_VALUE, event.getMessage());
+    } else if (recordValue instanceof Map) {
+        TestUtils.verifyMap((Map)recordValue, event.getMessage());
+    } else if (recordValue instanceof Struct) {
+      TestUtils.verifyStruct((Struct)recordValue, event.getMessage());
+    } else {
+      fail("Invalid record value");
     }
   }
 

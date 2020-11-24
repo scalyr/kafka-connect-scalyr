@@ -115,7 +115,8 @@ public class ScalyrSinkTask extends SinkTask {
 
     this.eventMapper = new EventMapper(
       parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)),
-      parseCustomAppEventMapping(sinkConfig.getString(ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG)));
+      parseCustomAppEventMapping(sinkConfig.getString(ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG)),
+      sinkConfig.getBoolean(ScalyrSinkConnectorConfig.SEND_ENTIRE_RECORD));
 
     log.info("Started ScalyrSinkTask with config {}", configProps);
   }

@@ -16,6 +16,7 @@
 
 package com.scalyr.integrations.kafka.mapping;
 
+import com.google.common.annotations.VisibleForTesting;
 import com.scalyr.integrations.kafka.TestUtils;
 import com.scalyr.integrations.kafka.TestValues;
 import org.apache.kafka.connect.data.Schema;
@@ -60,7 +61,7 @@ public class CustomAppMessageMapperTest {
    * Typically this is parsed from JSON, but we construct it programmatically here.
    * See {@link CustomAppRecordValueCreator} for the app fields.
    */
-  private CustomAppEventMapping createCustomAppEventMapping() {
+  @VisibleForTesting static CustomAppEventMapping createCustomAppEventMapping() {
     CustomAppEventMapping customAppEventMapping = new CustomAppEventMapping();
     customAppEventMapping.setEventMapping(TestUtils.makeMap(
       "id", "id",

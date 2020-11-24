@@ -43,12 +43,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+import java.util.stream.Stream;
 
 import static com.scalyr.integrations.kafka.AddEventsClientTest.EVENTS;
 import static com.scalyr.integrations.kafka.TestUtils.fails;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertTrue;
+import static org.junit.Assume.assumeFalse;
 
 /**
  * Test ScalyrSinkTask
@@ -58,6 +60,7 @@ public class ScalyrSinkTaskTest {
 
   private ScalyrSinkTask scalyrSinkTask;
   private final TriFunction<Integer, Integer, Integer, Object> recordValue;
+  private final boolean sendEntireRecord;
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
@@ -67,15 +70,19 @@ public class ScalyrSinkTaskTest {
   private static final int ADD_EVENTS_OVERHEAD_BYTES = (int)(TestValues.MIN_BATCH_SEND_SIZE_BYTES * 0.2); // 20% overhead
 
   /**
-   * Create test parameters for each SinkRecordValueCreator type.
+   * Create test parameters for each SinkRecordValueCreator type and send_entire_record combination.
+   * Object[] = {TriFunction<Integer, Integer, Integer, Object> recordValue, send_entire_record boolean}
    */
   @Parameterized.Parameters
   public static Collection<Object[]> testParams() {
-    return TestUtils.multipleRecordValuesTestParams();
+    return TestUtils.multipleRecordValuesTestParams().stream()
+      .flatMap(recordValue -> Stream.of(new Object[] {recordValue[0], false}, new Object[] {recordValue[0], true}))
+      .collect(Collectors.toList());
   }
 
-  public ScalyrSinkTaskTest(TriFunction<Integer, Integer, Integer, Object> recordValue) {
+  public ScalyrSinkTaskTest(TriFunction<Integer, Integer, Integer, Object> recordValue, boolean sendEntireRecord) {
     this.recordValue = recordValue;
+    this.sendEntireRecord = sendEntireRecord;
     // Print test params
     Object data = recordValue.apply(1, 1, 1);
     System.out.println("Executing test with " + (data instanceof Struct ? "schema" : "schemaless") + " recordValue: " + data);
@@ -119,7 +126,7 @@ public class ScalyrSinkTaskTest {
    */
   private void putAndVerifyRecords(MockWebServer server) throws InterruptedException, java.io.IOException {
     // Add multiple server responses for `put` batch exceeds `batch_send_size_bytes`
-    IntStream.range(0, 2).forEach(i ->
+    IntStream.range(0, 4).forEach(i ->
       server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)));
 
     // put SinkRecords
@@ -141,7 +148,7 @@ public class ScalyrSinkTaskTest {
 
     EventMapper eventMapper = new EventMapper(
       scalyrSinkTask.parseEnrichmentAttrs(new ScalyrSinkConnectorConfig(createConfig()).getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)),
-      CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON));
+      CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON), sendEntireRecord);
 
     List<Event> origEvents = records.stream()
       .map(eventMapper::createEvent)
@@ -190,6 +197,7 @@ public class ScalyrSinkTaskTest {
    */
   @Test
   public void testPutErrorHandling() {
+    assumeFalse(sendEntireRecord);
     final int numRequests = 3;
     int requestCount = 0;
     TestUtils.MockSleep mockSleep = new TestUtils.MockSleep();
@@ -228,6 +236,7 @@ public class ScalyrSinkTaskTest {
    */
   @Test
   public void testIgnoreInputTooLongError() throws Exception {
+    assumeFalse(sendEntireRecord);
     TestUtils.MockSleep mockSleep = new TestUtils.MockSleep();
     this.scalyrSinkTask = new ScalyrSinkTask(mockSleep.sleep);
     MockWebServer server = new MockWebServer();
@@ -258,6 +267,7 @@ public class ScalyrSinkTaskTest {
    */
   @Test
   public void testPutEventBufferingSendSize() throws Exception {
+    assumeFalse(sendEntireRecord);
     final int numRecords = (TestValues.MIN_BATCH_EVENTS / 2) + 1;
     ScalyrUtil.setCustomTimeNs(0);  // Set custom time and never advance so batchSendWaitMs will not be met
 
@@ -366,6 +376,7 @@ public class ScalyrSinkTaskTest {
    */
   @Test
   public void testSinglePutExceedsBatchBytesSize() throws Exception {
+    assumeFalse(sendEntireRecord);
     final int numExpectedSends = 4;
 
     MockWebServer server = new MockWebServer();
@@ -394,6 +405,7 @@ public class ScalyrSinkTaskTest {
    */
   @Test
   public void testLargeMsgMixedWithSmallMsgs() throws Exception {
+    assumeFalse(sendEntireRecord);
     final int numExpectedSends = 3;
 
     MockWebServer server = new MockWebServer();
@@ -526,6 +538,7 @@ public class ScalyrSinkTaskTest {
       ScalyrSinkConnectorConfig.SCALYR_API_CONFIG, TestValues.API_KEY_VALUE,
       ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG, CompressorFactory.NONE,
       ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG, TestValues.ENRICHMENT_VALUE,
-      ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG, TestValues.CUSTOM_APP_EVENT_MAPPING_JSON);
+      ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG, TestValues.CUSTOM_APP_EVENT_MAPPING_JSON,
+      ScalyrSinkConnectorConfig.SEND_ENTIRE_RECORD, Boolean.toString(sendEntireRecord));
   }
 }

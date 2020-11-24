@@ -31,6 +31,7 @@ import java.util.Map;
 import static com.scalyr.integrations.kafka.ScalyrSinkConnectorConfig.*;
 import static com.scalyr.integrations.kafka.TestUtils.fails;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertTrue;
 
@@ -64,7 +65,8 @@ public class ScalyrSinkConnectorConfigTest {
       EVENT_ENRICHMENT_CONFIG, TEST_EVENT_ENRICHMENT,
       BATCH_SEND_SIZE_BYTES_CONFIG, TEST_BATCH_SEND_SIZE,
       BATCH_SEND_WAIT_MS_CONFIG, TEST_BATCH_SEND_WAIT_MS,
-      CUSTOM_APP_EVENT_MAPPING_CONFIG, TestValues.CUSTOM_APP_EVENT_MAPPING_JSON);
+      CUSTOM_APP_EVENT_MAPPING_CONFIG, TestValues.CUSTOM_APP_EVENT_MAPPING_JSON,
+      SEND_ENTIRE_RECORD, "true");
 
     ScalyrSinkConnectorConfig connectorConfig = new ScalyrSinkConnectorConfig(config);
     assertEquals(TEST_SCALYR_SERVER, connectorConfig.getString(SCALYR_SERVER_CONFIG));
@@ -77,6 +79,7 @@ public class ScalyrSinkConnectorConfigTest {
     assertEquals(Integer.valueOf(TEST_BATCH_SEND_SIZE), connectorConfig.getInt(BATCH_SEND_SIZE_BYTES_CONFIG));
     assertEquals(Integer.valueOf(TEST_BATCH_SEND_WAIT_MS), connectorConfig.getInt(BATCH_SEND_WAIT_MS_CONFIG));
     assertEquals(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON, connectorConfig.getString(CUSTOM_APP_EVENT_MAPPING_CONFIG));
+    assertTrue(connectorConfig.getBoolean(SEND_ENTIRE_RECORD));
   }
 
   /**
@@ -97,6 +100,7 @@ public class ScalyrSinkConnectorConfigTest {
     assertEquals(DEFAULT_BATCH_SEND_SIZE_BYTES, connectorConfig.getInt(BATCH_SEND_SIZE_BYTES_CONFIG).intValue());
     assertEquals(DEFAULT_BATCH_SEND_WAIT_MS, connectorConfig.getInt(BATCH_SEND_WAIT_MS_CONFIG).intValue());
     assertNull(connectorConfig.getString(CUSTOM_APP_EVENT_MAPPING_CONFIG));
+    assertFalse(connectorConfig.getBoolean(SEND_ENTIRE_RECORD));
   }
 
   /**
@@ -175,6 +179,10 @@ public class ScalyrSinkConnectorConfigTest {
     config.put(ADD_EVENTS_RETRY_DELAY_MS_CONFIG, "1");
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(ADD_EVENTS_RETRY_DELAY_MS_CONFIG);
+
+    config.put(SEND_ENTIRE_RECORD, "invalidBoolean");
+    fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
+    config.remove(SEND_ENTIRE_RECORD);
   }
 
   /**
@@ -254,7 +262,7 @@ public class ScalyrSinkConnectorConfigTest {
     final ImmutableSet<String> configs = ImmutableSet.of(SCALYR_SERVER_CONFIG, SCALYR_API_CONFIG,
       COMPRESSION_TYPE_CONFIG, COMPRESSION_LEVEL_CONFIG, ADD_EVENTS_TIMEOUT_MS_CONFIG,
       ADD_EVENTS_RETRY_DELAY_MS_CONFIG, EVENT_ENRICHMENT_CONFIG,
-      BATCH_SEND_SIZE_BYTES_CONFIG, BATCH_SEND_WAIT_MS_CONFIG, CUSTOM_APP_EVENT_MAPPING_CONFIG);
+      BATCH_SEND_SIZE_BYTES_CONFIG, BATCH_SEND_WAIT_MS_CONFIG, CUSTOM_APP_EVENT_MAPPING_CONFIG, SEND_ENTIRE_RECORD);
 
     ConfigDef configDef = ScalyrSinkConnectorConfig.configDef();
     assertEquals(configs.size(), configDef.names().size());
