@@ -39,9 +39,8 @@ import java.util.function.Supplier;
 public class EventMapper {
   private static final Logger log = LoggerFactory.getLogger(EventMapper.class);
   private static final List<MessageMapper> DEFAULT_MAPPERS = ImmutableList.of(new FilebeatMessageMapper());
-  private static final List<MessageMapper> messageMappers = new ArrayList<>();
+  private final List<MessageMapper> messageMappers = new ArrayList<>();
   private final Map<String, String> enrichmentAttrs;
-  private final boolean sendEntireRecord;
   private static final RateLimiter noEventMapperLogRateLimiter = RateLimiter.create(1.0/30);  // 1 permit every 30 seconds to not log
   @VisibleForTesting static final String DEFAULT_PARSER = "kafkaParser";
 
@@ -50,12 +49,21 @@ public class EventMapper {
    */
   public EventMapper(Map<String, String> enrichmentAttrs, List<CustomAppEventMapping> customAppEventMappings, boolean sendEntireRecord) {
     this.enrichmentAttrs = enrichmentAttrs;
-    this.sendEntireRecord = sendEntireRecord;
     if (customAppEventMappings != null) {
       log.info("Adding custom event mappers {}", customAppEventMappings);
-      customAppEventMappings.forEach(customAppEventMapping -> messageMappers.add(new CustomAppMessageMapper(customAppEventMapping)));
+      customAppEventMappings.forEach(customAppEventMapping -> messageMappers.add(
+        addJsonRecordToMessageMapperIfNeeeded(new CustomAppMessageMapper(customAppEventMapping), sendEntireRecord)));
     }
-    messageMappers.addAll(DEFAULT_MAPPERS);
+    DEFAULT_MAPPERS.forEach(messageMapper -> messageMappers.add(addJsonRecordToMessageMapperIfNeeeded(messageMapper, sendEntireRecord)));
+  }
+
+  /**
+   * Add JsonRecordToMessageMapping decorator if sendEntireRecord is enabled.
+   * @return messageMapper decorated with JsonRecordToMessageMapping when sendEntireRecord=true.
+   * Otherwise, return original MessageMapper.
+   */
+  private MessageMapper addJsonRecordToMessageMapperIfNeeeded(MessageMapper messageMapper, boolean sendEntireRecord) {
+    return sendEntireRecord ? new JsonRecordToMessageMapping(messageMapper) : messageMapper;
   }
 
   /**
@@ -106,14 +114,8 @@ public class EventMapper {
    * @return MessageMapper for the SinkRecord value
    */
   private Optional<MessageMapper> getMessageMapper(SinkRecord sinkRecord) {
-    final Optional<MessageMapper> messageMapper = messageMappers.stream()
+    return messageMappers.stream()
       .filter(mapper -> mapper.matches(sinkRecord))
       .findFirst();
-
-    if (!messageMapper.isPresent() || !sendEntireRecord) {
-      return messageMapper;
-    }
-
-    return Optional.of(new JsonRecordToMessageMapping(messageMapper.get()));
   }
 }

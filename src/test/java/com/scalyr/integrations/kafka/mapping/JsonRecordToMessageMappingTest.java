@@ -34,7 +34,8 @@ import static org.junit.Assert.fail;
  * Test for JsonRecordToMessageMapping
  */
 public class JsonRecordToMessageMappingTest {
-  private static final AtomicInteger offset = new AtomicInteger();
+  /** Simulated Kafka partition offset */
+  private static final AtomicInteger kafkaOffset = new AtomicInteger();
   private MessageMapper messageMapper;
   private SinkRecordValueCreator sinkRecordValueCreator;
 
@@ -53,7 +54,7 @@ public class JsonRecordToMessageMappingTest {
    */
   @Test
   public void testCustomAppMessageMapperSchemaless() throws Exception {
-    SinkRecord record = new SinkRecord(topic, partition, null, null, null, sinkRecordValueCreator.createSchemalessRecordValue(1, 1, 1), offset.getAndIncrement());
+    SinkRecord record = new SinkRecord(topic, partition, null, null, null, sinkRecordValueCreator.createSchemalessRecordValue(1, 1, 1), kafkaOffset.getAndIncrement());
     verifySinkRecord(record);
   }
 
@@ -63,7 +64,7 @@ public class JsonRecordToMessageMappingTest {
   @Test
   public void testCustomAppMessageMapperSchema() throws Exception {
     final Struct schemaRecordValue = sinkRecordValueCreator.createSchemaRecordValue(1, 1, 1);
-    SinkRecord record = new SinkRecord(topic, partition, null, null, schemaRecordValue.schema(), schemaRecordValue, offset.getAndIncrement());
+    SinkRecord record = new SinkRecord(topic, partition, null, null, schemaRecordValue.schema(), schemaRecordValue, kafkaOffset.getAndIncrement());
     verifySinkRecord(record);
   }
 

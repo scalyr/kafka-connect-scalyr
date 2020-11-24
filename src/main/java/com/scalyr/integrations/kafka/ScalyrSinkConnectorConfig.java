@@ -69,7 +69,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
     + "[{\"matcher\": { \"attribute\": \"app.name\", \"value\": \"customApp\"},\n" +
     " \"eventMapping\": { \"message\": \"message\", \"logfile\": \"log.path\", \"serverHost\": \"host.hostname\", \"parser\": \"fields.parser\", \"version\": \"app.version\"} }]";
   public static final String SEND_ENTIRE_RECORD = "send_entire_record";
-  private static final String SEND_ENTIRE_RECORD_DOC = "If true, send the entire Kafka Connect record value serialized to JSON in the message field.";
+  private static final String SEND_ENTIRE_RECORD_DOC = "If true, send the entire Kafka Connect record value serialized to JSON as the message field.";
 
   public ScalyrSinkConnectorConfig(Map<String, String> parsedConfig) {
     super(configDef(), parsedConfig);

@@ -30,13 +30,14 @@ import java.util.Map;
  * The typical use case for this is when the Kafka record value is JSON and the entire JSON needs to be sent to Scalyr.
  */
 public class JsonRecordToMessageMapping implements MessageMapper {
+  /** MessageMapper for the SinkRecord message format. */
   private final MessageMapper baseMapper;
-  private final JsonConverter converter;
+  private final JsonConverter jsonConverter;
 
   public JsonRecordToMessageMapping(MessageMapper baseMapper) {
     this.baseMapper = baseMapper;
-    converter = new JsonConverter();
-    converter.configure(ImmutableMap.of(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, false, ConverterConfig.TYPE_CONFIG, "value"));
+    jsonConverter = new JsonConverter();
+    jsonConverter.configure(ImmutableMap.of(JsonConverterConfig.SCHEMAS_ENABLE_CONFIG, false, ConverterConfig.TYPE_CONFIG, "value"));
   }
 
   @Override
@@ -56,7 +57,7 @@ public class JsonRecordToMessageMapping implements MessageMapper {
 
   @Override
   public String getMessage(SinkRecord record) {
-    return new String(converter.fromConnectData(
+    return new String(jsonConverter.fromConnectData(
       record.topic(),
       record.valueSchema(),
       record.value()),
