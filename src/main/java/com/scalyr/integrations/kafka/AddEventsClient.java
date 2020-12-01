@@ -519,9 +519,11 @@ public class AddEventsClient implements AutoCloseable {
      */
     private void writeEventAttrs(Event event, JsonGenerator jsonGenerator) throws IOException {
       jsonGenerator.writeObjectFieldStart("attrs");
-      jsonGenerator.writeFieldName("message");
-      byte[] quotedMsg = event.getSerializedMessage().asQuotedUTF8();
-      jsonGenerator.writeRawUTF8String(quotedMsg, 0, quotedMsg.length);
+      if (event.getSerializedMessage() != null) {
+        jsonGenerator.writeFieldName("message");
+        byte[] quotedMsg = event.getSerializedMessage().asQuotedUTF8();
+        jsonGenerator.writeRawUTF8String(quotedMsg, 0, quotedMsg.length);
+      }
 
       // Write additional attrs
       if (event.getAdditionalAttrs() != null) {
