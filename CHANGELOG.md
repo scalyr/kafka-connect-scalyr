@@ -8,3 +8,6 @@ Features:
 * Supports custom application log messages using user defined conversion of message fields to Scalyr log event attributes.
 * Supports Fluentd and Fluent Bit using custom application event mappings.
 * Exactly once delivery using the topic, partition, and offset to uniquely identify events and prevent duplicate delivery.
+
+## 1.1
+Performance improvements for JSON serialization.
