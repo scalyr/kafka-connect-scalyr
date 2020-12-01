@@ -23,7 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.IntStream;
 
 /**
  * Abstraction for a Scalyr Event.
@@ -222,11 +221,14 @@ public class Event {
     return s.length();
   }
 
-  private int countJsonEscapedCharacters(String s) {
-    return (int)IntStream.range(0, s.length())
-      .mapToObj(s::charAt)
-      .filter(JSON_ESCAPED_CHARS::contains)
-      .count();
+  public int countJsonEscapedCharacters(String s) {
+    int escapedChars = 0;
+    for (int i = 0; i < s.length(); i++) {
+      if (JSON_ESCAPED_CHARS.contains(s.charAt(i))) {
+        escapedChars++;
+      }
+    }
+    return escapedChars;
   }
 
   /**
