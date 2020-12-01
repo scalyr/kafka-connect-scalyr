@@ -122,6 +122,16 @@ public class AddEventsClientTest {
   }
 
   /**
+   * Verify JSON in Event message serialization
+   */
+  @Test
+  public void jsonMessageTest() throws IOException {
+    final String jsonMsg = "{\"k1\":\"v1\", \"k2\":\"v2\", \"k3\": 1.0, \"k4\": {\"k1\":\"v1\", \"k2\":\"v2\"}}";
+    List<Event> events = TestUtils.createTestEvents(10, jsonMsg, 1, 1, 1);
+    createAndVerifyAddEventsRequest(events);
+  }
+
+  /**
    * Create `numEvents` with the specified `numServers`, `numLogFiles`, `numParsers`
    * and verify the AddEventsRequest is serialized correctly to JSON.
    */

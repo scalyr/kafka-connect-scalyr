@@ -16,6 +16,7 @@
 
 package com.scalyr.integrations.kafka;
 
+import com.fasterxml.jackson.core.io.SerializedString;
 import com.google.common.base.Strings;
 import com.google.common.collect.ImmutableSet;
 
@@ -23,7 +24,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.IntStream;
 
 /**
  * Abstraction for a Scalyr Event.
@@ -48,7 +48,7 @@ public class Event {
 
   // Event level fields
   private long timestamp;
-  private String message;
+  private SerializedString message;
   private Map<String, Object> additionalAttrs;
 
   // Cached estimated event size
@@ -107,7 +107,7 @@ public class Event {
   }
 
   public Event setMessage(String message) {
-    this.message = message;
+    this.message = message == null ? null : new SerializedString(message);
     return this;
   }
 
@@ -170,7 +170,9 @@ public class Event {
     return timestamp;
   }
 
-  public String getMessage() {
+  public String getMessage() { return message == null ? null : message.getValue(); }
+
+  public SerializedString getSerializedMessage() {
     return message;
   }
 
@@ -187,7 +189,7 @@ public class Event {
       return estimatedSizeBytes;
     }
 
-    int size = Strings.isNullOrEmpty(getMessage()) ? 0 : estimateEscapedStringSize(getMessage());
+    int size = Strings.isNullOrEmpty(getMessage()) ? 0 : getSerializedMessage().asQuotedUTF8().length;
     size += getTopic().length();
     size += EVENT_SERIALIZATION_OVERHEAD_BYTES;
 
@@ -222,11 +224,14 @@ public class Event {
     return s.length();
   }
 
-  private int countJsonEscapedCharacters(String s) {
-    return (int)IntStream.range(0, s.length())
-      .mapToObj(s::charAt)
-      .filter(JSON_ESCAPED_CHARS::contains)
-      .count();
+  public int countJsonEscapedCharacters(String s) {
+    int escapedChars = 0;
+    for (int i = 0; i < s.length(); i++) {
+      if (JSON_ESCAPED_CHARS.contains(s.charAt(i))) {
+        escapedChars++;
+      }
+    }
+    return escapedChars;
   }
 
   /**

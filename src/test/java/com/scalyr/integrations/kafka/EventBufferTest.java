@@ -63,6 +63,23 @@ public class EventBufferTest {
   }
 
   /**
+   * Test add events payload estimate with no message attribute.
+   */
+  @Test
+  public void testNullMessage() throws Exception {
+    final int numEvents = 1000;
+    EventBuffer eventBuffer = new EventBuffer();
+    TestUtils.createTestEvents(numEvents, null, 100, 1, 1)
+      .forEach(eventBuffer::addEvent);
+
+    final int estimatedSerializedBytes = eventBuffer.estimatedSerializedBytes();
+    final int actualSerializedBytes = actualSerializedSize(eventBuffer.getEvents());
+    // message field is not included in serialized payload when null, although estimates still include `message`
+    // allow bigger delta to account for this
+    assertEquals(actualSerializedBytes, estimatedSerializedBytes, actualSerializedBytes * deltaPercent * 2);
+  }
+
+  /**
    * Calculate add events payload serialized size.
    */
   private int actualSerializedSize(List<Event> events) throws Exception {

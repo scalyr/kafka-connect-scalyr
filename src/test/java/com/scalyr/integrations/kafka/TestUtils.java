@@ -138,6 +138,7 @@ public class TestUtils {
           .addAdditionalAttr("app", "test")
           .addAdditionalAttr("isTest", true)
           .addAdditionalAttr("version", 2.3)
+          .addAdditionalAttr("jsonAttr", "{\"k1\":\"v1\"}")
           .setEnrichmentAttrs(TestValues.ENRICHMENT_VALUE_MAP);
       });
   }
