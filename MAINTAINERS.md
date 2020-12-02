@@ -10,7 +10,7 @@
 
     ```bash
     git tag -a 1.0 -m "1.0 - Shiny new features and bug fixes"
-    git push upstream 1.0
+    git push origin 1.0
     ```
 
 * Circle CI builds the tag and ships to GitHub Releases
