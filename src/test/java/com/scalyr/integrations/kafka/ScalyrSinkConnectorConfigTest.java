@@ -218,12 +218,21 @@ public class ScalyrSinkConnectorConfigTest {
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
 
-    // No event mapping
+    // No event mapping when SEND_ENTIRE_RECORD=false
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");
     customAppEventMapping.remove("eventMapping");
     config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
     fails(() -> new ScalyrSinkConnectorConfig(config), ConfigException.class);
     config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+
+    // No event mapping when SEND_ENTIRE_RECORD=true
+    customAppEventMapping = TestValues.createCustomAppEventMapping(".");
+    customAppEventMapping.remove("eventMapping");
+    config.put(CUSTOM_APP_EVENT_MAPPING_CONFIG, objectMapper.writeValueAsString(Collections.singletonList(customAppEventMapping)));
+    config.put(SEND_ENTIRE_RECORD, "true");
+    new ScalyrSinkConnectorConfig(config);
+    config.remove(CUSTOM_APP_EVENT_MAPPING_CONFIG);
+    config.remove(SEND_ENTIRE_RECORD);
 
     // Empty matcher
     customAppEventMapping = TestValues.createCustomAppEventMapping(".");

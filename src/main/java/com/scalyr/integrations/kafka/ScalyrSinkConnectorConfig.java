@@ -73,6 +73,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
 
   public ScalyrSinkConnectorConfig(Map<String, String> parsedConfig) {
     super(configDef(), parsedConfig);
+    validateCustomAppEventMappingWithSendEntireRecord();
   }
 
   public static ConfigDef configDef() {
@@ -141,7 +142,24 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
         if (mapping.getMatcherFields().isEmpty() || Strings.isNullOrEmpty(mapping.getMatcherValue())) {
           throw new ConfigException("Custom event application mapping matcher not defined");
         }
+      }
+    } catch (IOException | IllegalArgumentException e) {
+      throw new ConfigException("Invalid custom application event mapping JSON", e);
+    }
+  };
 
+  /**
+   * Additional Validator for CUSTOM_APP_EVENT_MAPPING_CONFIG when `send_entire_record=false`.
+   * Verifies message or application attribute field is set.
+   */
+  private static final ConfigDef.Validator customAppMessageFieldValidator = (name, value) -> {
+    if (value == null) {
+      return;
+    }
+
+    try {
+      List<CustomAppEventMapping> customAppEventMappings = CustomAppEventMapping.parseCustomAppEventMappingConfig((String) value);
+      for (CustomAppEventMapping mapping : customAppEventMappings) {
         if (mapping.getMessageFields().isEmpty() && mapping.getAdditionalAttrFields().isEmpty()) {
           throw new ConfigException("Either message field or application attribute fields must be defined");
         }
@@ -150,4 +168,16 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
       throw new ConfigException("Invalid custom application event mapping JSON", e);
     }
   };
+
+  /**
+   * Perform custom_app_event_mapping validation in the context of send_entire_record config.
+   * If send_entire_record=false, verify that a message or application attribute mapping exists.
+   */
+  private void validateCustomAppEventMappingWithSendEntireRecord() {
+    if (!getBoolean(ScalyrSinkConnectorConfig.SEND_ENTIRE_RECORD)) {
+      ScalyrSinkConnectorConfig.customAppMessageFieldValidator.ensureValid(ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG,
+        getString(ScalyrSinkConnectorConfig.CUSTOM_APP_EVENT_MAPPING_CONFIG));
+    }
+  }
+
 }
