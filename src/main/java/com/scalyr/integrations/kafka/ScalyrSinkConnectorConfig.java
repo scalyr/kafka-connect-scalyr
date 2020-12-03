@@ -39,7 +39,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
   public static final String DEFAULT_COMPRESSION_TYPE = "deflate";
   public static final int DEFAULT_ADD_EVENTS_TIMEOUT_MS = 20_000;
   public static final int DEFAULT_ADD_EVENTS_RETRY_DELAY_MS = 500;
-  public static final int DEFAULT_BATCH_SEND_SIZE_BYTES = 4_000_000;
+  public static final int DEFAULT_BATCH_SEND_SIZE_BYTES = 5_000_000;
   public static final int DEFAULT_BATCH_SEND_WAIT_MS = 5000;
 
   public static final String SCALYR_SERVER_CONFIG = "scalyr_server";
