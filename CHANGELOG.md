@@ -11,3 +11,7 @@ Features:
 
 ## 1.1
 Performance improvements for JSON serialization.
+
+## 1.2
+* Allow not specifying application attribute fields in custom application event mappings when `send_entire_record` is `true`.
+* Change default `batch_send_size_bytes` to 5 MB. 
