@@ -81,16 +81,19 @@ public class CustomAppEventMapping {
 
   private static final Set<String> standardAttrs = ImmutableSet.of(SERVER_HOST, LOG_FILE, PARSER, MESSAGE);
 
-  public void setMatcher(Matcher matcher) {
+  public CustomAppEventMapping setMatcher(Matcher matcher) {
     this.matcher = matcher;
+    return this;
   }
 
-  public void setEventMapping(Map<String, String> eventMapping) {
+  public CustomAppEventMapping setEventMapping(Map<String, String> eventMapping) {
     this.eventMapping = eventMapping;
+    return this;
   }
 
-  public void setDelimiter(String fieldDelimiter) {
+  public CustomAppEventMapping setDelimiter(String fieldDelimiter) {
     this.delimiter = fieldDelimiter;
+    return this;
   }
 
   public String getMatcherValue() {
