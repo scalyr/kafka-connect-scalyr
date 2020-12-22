@@ -138,10 +138,23 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
       if (customAppEventMappings.isEmpty()) {
         throw new ConfigException("No custom event mappings are defined");
       }
+      int numMatchAll = 0;
       for (CustomAppEventMapping mapping : customAppEventMappings) {
-        if (mapping.getMatcherFields().isEmpty() || Strings.isNullOrEmpty(mapping.getMatcherValue())) {
+        if (!mapping.isMatchAll() && (mapping.getMatcherFields().isEmpty() || Strings.isNullOrEmpty(mapping.getMatcherValue()))) {
           throw new ConfigException("Custom event application mapping matcher not defined");
         }
+        if (mapping.isMatchAll()) {
+          numMatchAll++;
+        }
+      }
+
+      // Only one matchAll is allowed to avoid ambiguity
+      if (numMatchAll > 1) {
+        throw new ConfigException("More than one match all custom event mapping matcher is defined");
+      }
+      // Custom event mappings are evaluated in order.  Match all should be last so that other custom event mappings are evaluated.
+      if (numMatchAll == 1 && !customAppEventMappings.get(customAppEventMappings.size() - 1).isMatchAll()) {
+        throw new ConfigException("Match all custom event mapping matcher should be defined last so other custom event mappings can match");
       }
     } catch (IOException | IllegalArgumentException e) {
       throw new ConfigException("Invalid custom application event mapping JSON", e);

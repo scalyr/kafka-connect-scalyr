@@ -46,7 +46,7 @@ public class CustomAppEventMappingTest {
   @Test
   public void testUndefinedFields() throws IOException {
     // Create event mapping with missing Scalyr fields
-    Map<String, Object> customAppEventMappingDefinition = TestValues.createCustomAppEventMapping(".");
+    Map<String, Object> customAppEventMappingDefinition = TestValues.createCustomAppEventMapping(".", false);
     ((Map)customAppEventMappingDefinition.get("eventMapping")).remove("logfile");
     ((Map)customAppEventMappingDefinition.get("eventMapping")).remove("parser");
 
