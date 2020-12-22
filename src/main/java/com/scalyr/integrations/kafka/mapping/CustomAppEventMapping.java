@@ -110,6 +110,11 @@ public class CustomAppEventMapping {
     return splitAttrFields(matcher.attribute);
   }
 
+  public boolean isMatchAll() {
+    Preconditions.checkArgument(matcher != null, "matcher not defined in custom application event mapping");
+    return matcher.matchAll == null ? false : matcher.matchAll;
+  }
+
   public List<String> getServerHostFields() {
     return getAttribute(SERVER_HOST);
   }
@@ -150,15 +155,23 @@ public class CustomAppEventMapping {
    * Defines the field and value to determine whether the message matches the custom app event mapping.
    */
   public static class Matcher {
+    private Boolean matchAll;
     private String attribute;
     private String value;
 
-    public void setAttribute(String attribute) {
-      this.attribute = attribute;
+    public Matcher setMatchAll(Boolean matchAll) {
+      this.matchAll = matchAll;
+      return this;
     }
 
-    public void setValue(String value) {
+    public Matcher setAttribute(String attribute) {
+      this.attribute = attribute;
+      return this;
+    }
+
+    public Matcher setValue(String value) {
       this.value = value;
+      return this;
     }
 
     @Override

@@ -19,6 +19,7 @@ package com.scalyr.integrations.kafka;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -57,6 +58,7 @@ public abstract class TestValues {
   public static final String ADD_EVENTS_RESPONSE_INPUT_TOO_LONG;
   public static final String CUSTOM_APP_EVENT_MAPPING_JSON;
   public static final String CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON;
+  public static final String CUSTOM_APP_MATCH_ALL_EVENT_MAPPING_JSON;
 
 
   static {
@@ -74,6 +76,10 @@ public abstract class TestValues {
 
       CUSTOM_APP_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping(".")));
       CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping("_")));
+      final Map<String, Object> customAppEventMappingMatchAll = createCustomAppEventMapping(".");
+      customAppEventMappingMatchAll.put("matcher", ImmutableMap.of("matchAll", true));
+      CUSTOM_APP_MATCH_ALL_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Collections.singletonList(customAppEventMappingMatchAll));
+
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }

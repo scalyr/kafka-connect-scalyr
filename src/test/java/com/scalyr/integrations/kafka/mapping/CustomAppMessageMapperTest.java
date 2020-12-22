@@ -50,6 +50,7 @@ public class CustomAppMessageMapperTest {
   private static final Random random = new Random();
   private MessageMapper messageMapper;
   private SinkRecordValueCreator sinkRecordValueCreator;
+  private boolean matchAll;
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
@@ -57,13 +58,15 @@ public class CustomAppMessageMapperTest {
 
   @Parameterized.Parameters
   public static Collection<Object[]> testParams() {
-    return Arrays.asList(new Object[][] { {createCustomAppEventMapping()},
-      {createCustomAppEventMapping().setMatcher(createMatcher(matcherAttr, "custom.*"))}});
+    return Arrays.asList(new Object[][] { {createCustomAppEventMapping(), false},
+      {createCustomAppEventMapping().setMatcher(createMatcher(matcherAttr, "custom.*")), false},
+      {createCustomAppEventMapping().setMatcher(new CustomAppEventMapping.Matcher().setMatchAll(true)), true}});
   }
 
-  public CustomAppMessageMapperTest(CustomAppEventMapping customAppEventMapping) {
-    messageMapper = new CustomAppMessageMapper(customAppEventMapping);
-    sinkRecordValueCreator = new CustomAppRecordValueCreator();
+  public CustomAppMessageMapperTest(CustomAppEventMapping customAppEventMapping, boolean matchAll) {
+    this.messageMapper = new CustomAppMessageMapper(customAppEventMapping);
+    this.matchAll = matchAll;
+    this.sinkRecordValueCreator = new CustomAppRecordValueCreator();
 
   }
 
@@ -144,7 +147,7 @@ public class CustomAppMessageMapperTest {
     assertNull(messageMapper.getLogfile(record));
     assertNull(messageMapper.getParser(record));
     assertNull(messageMapper.getServerHost(record));
-    assertFalse(messageMapper.matches(record));
+    assertEquals(matchAll, messageMapper.matches(record));
     Map<String, Object> additionalAttrs = messageMapper.getAdditionalAttrs(record);
     assertTrue(additionalAttrs.containsKey("id"));
     assertTrue(additionalAttrs.containsKey("severity"));

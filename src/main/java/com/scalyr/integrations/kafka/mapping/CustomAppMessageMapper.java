@@ -34,6 +34,7 @@ public class CustomAppMessageMapper implements MessageMapper {
   private final List<String> matcherFields;
   private final Map<String, List<String>> additionalAttrsFields;
   private final Pattern matcherRegex;
+  private final boolean matchAll;
 
   /**
    * CustomApplicationDefinition fields are memoized to instance variables
@@ -45,8 +46,9 @@ public class CustomAppMessageMapper implements MessageMapper {
     serverHostFields = customAppEventMapping.getServerHostFields();
     parserFields = customAppEventMapping.getParserFields();
     matcherFields = customAppEventMapping.getMatcherFields();
+    matchAll = customAppEventMapping.isMatchAll();
     additionalAttrsFields = customAppEventMapping.getAdditionalAttrFields();
-    matcherRegex = Pattern.compile(customAppEventMapping.getMatcherValue());
+    matcherRegex = matchAll ? null : Pattern.compile(customAppEventMapping.getMatcherValue());
   }
 
   @Override
@@ -79,6 +81,10 @@ public class CustomAppMessageMapper implements MessageMapper {
 
   @Override
   public boolean matches(SinkRecord record) {
+    if (matchAll) {
+      return true;
+    }
+
     Object fieldValue = FieldExtractor.getField(record.value(), matcherFields);
     return fieldValue == null ? false : matcherRegex.matcher(fieldValue.toString()).matches();
   }
