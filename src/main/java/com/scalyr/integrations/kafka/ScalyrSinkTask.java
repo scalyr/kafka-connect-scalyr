@@ -17,6 +17,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.RateLimiter;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.CustomAppEventMapping;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
@@ -73,6 +74,8 @@ public class ScalyrSinkTask extends SinkTask {
   private int batchSendWaitMs;
 
   private long lastBatchSendTimeMs;
+
+  private static final RateLimiter noRecordLogRateLimiter = RateLimiter.create(1.0/30);  // 1 permit every 30 seconds to not log
 
   /**
    * Default constructor called by Kafka Connect.
@@ -146,15 +149,22 @@ public class ScalyrSinkTask extends SinkTask {
       throw lastError;
     }
 
-    records.stream()
+    final long recordCount = records.stream()
       .map(eventMapper::createEvent)
       .filter(Objects::nonNull)
-      .forEach(event -> {
+      .peek(event -> {
         if (eventBuffer.estimatedSerializedBytes() + event.estimatedSerializedBytes() >= batchSendSizeBytes) {
           sendEvents();
         }
         eventBuffer.addEvent(event);
-      });
+      }).count();
+
+    if (recordCount == 0) {
+      if (noRecordLogRateLimiter.tryAcquire()) {
+        log.warn("No records matched an event mapper.  Records not sent to Scalyr.  Check the custom_app_event_mapping matcher configuration.");
+      }
+      return;
+    }
 
     // Send events when batchSendWaitMs exceeded
     if (ScalyrUtil.currentTimeMillis() - lastBatchSendTimeMs >= batchSendWaitMs) {
@@ -166,6 +176,9 @@ public class ScalyrSinkTask extends SinkTask {
    * Call addEvents with EventBuffer
    */
   private void sendEvents() {
+    if (eventBuffer.length() == 0) {
+      return;
+    }
     PerfStats perfStats = new PerfStats(log);
     perfStats.recordEvents(eventBuffer);
     pendingAddEvents = addEventsClient.log(eventBuffer.getEvents(), pendingAddEvents).whenComplete(this::processResponse);
