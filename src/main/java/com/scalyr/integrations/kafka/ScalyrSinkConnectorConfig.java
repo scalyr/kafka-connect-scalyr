@@ -66,7 +66,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
   public static final String CUSTOM_APP_EVENT_MAPPING_CONFIG = "custom_app_event_mapping";
   private static final String CUSTOM_APP_EVENT_MAPPING_DOC = "JSON config describing how to map custom application nested Kafka messages to Scalyr events." +
     "  Multiple custom application event mappings can be specified in a JSON list and are evaluated in the order specified in the list." +
-    "  Regex is supported for the matcher.value.  Example config JSON:\n" +
+    "  The matcher.value supports regex to match the entire field value.  Example config JSON:\n" +
     "[{\"matcher\": { \"attribute\": \"app.name\", \"value\": \"mpApp.*\"},\n" +
     " \"eventMapping\": { \"message\": \"message\", \"logfile\": \"log.path\", \"serverHost\": \"host.hostname\", \"parser\": \"fields.parser\", \"version\": \"app.version\"} },\n" +
     "{\"matcher\": { \"matchAll\": true},\n" +
@@ -157,7 +157,7 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
       }
       // Custom event mappings are evaluated in order.  Match all should be last so that other custom event mappings are evaluated.
       if (numMatchAll == 1 && !customAppEventMappings.get(customAppEventMappings.size() - 1).isMatchAll()) {
-        throw new ConfigException("Match all custom event mapping matcher should be defined last so other custom event mappings can match");
+        throw new ConfigException("Custom event mapper with matchAll=true must be listed last. Otherwise, some mappers would be ignored.");
       }
     } catch (IOException | IllegalArgumentException e) {
       throw new ConfigException("Invalid custom application event mapping JSON", e);

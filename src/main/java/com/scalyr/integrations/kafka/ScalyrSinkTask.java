@@ -166,7 +166,6 @@ public class ScalyrSinkTask extends SinkTask {
       if (noRecordLogRateLimiter.tryAcquire()) {
         log.warn("No records matched an event mapper.  Records not sent to Scalyr.  Check the custom_app_event_mapping matcher configuration.");
       }
-      return;
     }
 
     // Send events when batchSendWaitMs exceeded
