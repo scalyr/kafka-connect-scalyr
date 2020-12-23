@@ -87,6 +87,7 @@ public class CustomAppEventMapping {
   public static final String LOG_FILE = "logfile";
   public static final String PARSER = "parser";
   public static final String MESSAGE = "message";
+  private static final String MATCHER_NOT_DEFINED_ERROR = "matcher not defined in custom application event mapping";
 
   private static final Set<String> standardAttrs = ImmutableSet.of(SERVER_HOST, LOG_FILE, PARSER, MESSAGE);
 
@@ -106,7 +107,7 @@ public class CustomAppEventMapping {
   }
 
   public String getMatcherValue() {
-    Preconditions.checkArgument(matcher != null, "matcher not defined in custom application event mapping");
+    Preconditions.checkArgument(matcher != null, MATCHER_NOT_DEFINED_ERROR);
     return matcher.value;
   }
 
@@ -115,13 +116,13 @@ public class CustomAppEventMapping {
    * using the delimiter as the field separator.
    */
   public List<String> getMatcherFields() {
-    Preconditions.checkArgument(matcher != null, "matcher not defined in custom application event mapping");
+    Preconditions.checkArgument(matcher != null, MATCHER_NOT_DEFINED_ERROR);
     return splitAttrFields(matcher.attribute);
   }
 
   public boolean isMatchAll() {
-    Preconditions.checkArgument(matcher != null, "matcher not defined in custom application event mapping");
-    return matcher.matchAll == null ? false : matcher.matchAll;
+    Preconditions.checkArgument(matcher != null, MATCHER_NOT_DEFINED_ERROR);
+    return matcher.matchAll;
   }
 
   public List<String> getServerHostFields() {
@@ -164,7 +165,7 @@ public class CustomAppEventMapping {
    * Defines the field and value to determine whether the message matches the custom app event mapping.
    */
   public static class Matcher {
-    private Boolean matchAll;
+    private boolean matchAll;
     private String attribute;
     private String value;
 

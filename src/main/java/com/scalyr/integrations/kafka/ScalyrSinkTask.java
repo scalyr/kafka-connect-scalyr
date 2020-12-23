@@ -40,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
@@ -149,17 +150,19 @@ public class ScalyrSinkTask extends SinkTask {
       throw lastError;
     }
 
-    final long recordCount = records.stream()
+    AtomicInteger recordCount = new AtomicInteger();
+    records.stream()
       .map(eventMapper::createEvent)
       .filter(Objects::nonNull)
-      .peek(event -> {
+      .forEach(event -> {
+        recordCount.incrementAndGet();
         if (eventBuffer.estimatedSerializedBytes() + event.estimatedSerializedBytes() >= batchSendSizeBytes) {
           sendEvents();
         }
         eventBuffer.addEvent(event);
-      }).count();
+      });
 
-    if (recordCount == 0) {
+    if (recordCount.get() == 0) {
       if (noRecordLogRateLimiter.tryAcquire()) {
         log.warn("No records matched an event mapper.  Records not sent to Scalyr.  Check the custom_app_event_mapping matcher configuration.");
       }
