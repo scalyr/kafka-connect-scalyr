@@ -14,4 +14,9 @@ Performance improvements for JSON serialization.
 
 ## 1.2
 * Allow not specifying application attribute fields in custom application event mappings when `send_entire_record` is `true`.
-* Change default `batch_send_size_bytes` to 5 MB. 
+* Change default `batch_send_size_bytes` to 5 MB.
+
+## 1.3
+Features
+* Regular expression support for custom application event mapping `matcher.value`.
+* `matchAll` support for custom application event mapping matcher.
