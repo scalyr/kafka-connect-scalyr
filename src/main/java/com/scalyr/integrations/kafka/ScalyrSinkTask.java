@@ -162,10 +162,9 @@ public class ScalyrSinkTask extends SinkTask {
         eventBuffer.addEvent(event);
       });
 
-    if (recordCount.get() == 0) {
-      if (noRecordLogRateLimiter.tryAcquire()) {
-        log.warn("No records matched an event mapper.  Records not sent to Scalyr.  Check the custom_app_event_mapping matcher configuration.");
-      }
+    // No early return when recordCount == 0 to send events when batchSendWaitMs exceeded
+    if (recordCount.get() == 0 && noRecordLogRateLimiter.tryAcquire()) {
+      log.warn("No records matched an event mapper.  Records not sent to Scalyr.  Check the custom_app_event_mapping matcher configuration.");
     }
 
     // Send events when batchSendWaitMs exceeded
@@ -203,9 +202,7 @@ public class ScalyrSinkTask extends SinkTask {
     log.debug("Flushing data to Scalyr with the following offsets: {}", currentOffsets);
 
     // Send pending events in buffer
-    if (eventBuffer.length() > 0) {
-      sendEvents();
-    }
+    sendEvents();
 
     // Wait for in-flight addEvents requests to complete
     waitForRequestsToComplete();
