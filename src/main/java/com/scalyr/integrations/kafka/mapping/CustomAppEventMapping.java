@@ -54,6 +54,15 @@ import java.util.stream.Collectors;
 
  `matcher` defines an attribute to determine whether the event mapping applies to the message.
  The event mapping is only applied to messages where the `matcher.attribute` value matches the `matcher.value`.
+ `matcher.value` can be a regex.
+
+ `matcher` can also be defined to match all events:
+ ```
+ "matcher": {
+   "matchAll": true
+ }
+ ```
+ When `matchAll=true`, `attribute` and `value` fields are not required and are ignored.
 
  `eventMapping` defines the message fields that are mapped to Scalyr event attributes.
  The attribute is the Scalyr event key.  The attribute value specifies the

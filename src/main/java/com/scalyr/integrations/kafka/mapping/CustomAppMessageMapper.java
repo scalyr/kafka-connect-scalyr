@@ -47,8 +47,8 @@ public class CustomAppMessageMapper implements MessageMapper {
     parserFields = customAppEventMapping.getParserFields();
     matcherFields = customAppEventMapping.getMatcherFields();
     matchAll = customAppEventMapping.isMatchAll();
-    additionalAttrsFields = customAppEventMapping.getAdditionalAttrFields();
     matcherRegex = matchAll ? null : Pattern.compile(customAppEventMapping.getMatcherValue());
+    additionalAttrsFields = customAppEventMapping.getAdditionalAttrFields();
   }
 
   @Override
