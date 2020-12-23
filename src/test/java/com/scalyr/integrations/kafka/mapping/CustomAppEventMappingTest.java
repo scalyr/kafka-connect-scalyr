@@ -22,15 +22,23 @@ public class CustomAppEventMappingTest {
   public void testDeserializationDefaultDelimiter() throws IOException {
     List<CustomAppEventMapping> customAppEventMappings = CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_JSON);
     assertEquals(1, customAppEventMappings.size());
-    verifyCustomApplicationEventMapping(customAppEventMappings.get(0));
+    verifyCustomApplicationEventMapping(customAppEventMappings.get(0), false);
   }
 
   @Test
   public void testDeserializationCustomDelimiter() throws IOException {
     List<CustomAppEventMapping> customAppEventMappings = CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON);
     assertEquals(1, customAppEventMappings.size());
-    verifyCustomApplicationEventMapping(customAppEventMappings.get(0));
+    verifyCustomApplicationEventMapping(customAppEventMappings.get(0), false);
   }
+
+  @Test
+  public void testDeserializationMatchAll() throws IOException {
+    List<CustomAppEventMapping> customAppEventMappings = CustomAppEventMapping.parseCustomAppEventMappingConfig(TestValues.CUSTOM_APP_MATCH_ALL_EVENT_MAPPING_JSON);
+    assertEquals(1, customAppEventMappings.size());
+    verifyCustomApplicationEventMapping(customAppEventMappings.get(0), true);
+  }
+
 
   /**
    * Verify undefined fields in event mapping return empty list for fields.
@@ -38,7 +46,7 @@ public class CustomAppEventMappingTest {
   @Test
   public void testUndefinedFields() throws IOException {
     // Create event mapping with missing Scalyr fields
-    Map<String, Object> customAppEventMappingDefinition = TestValues.createCustomAppEventMapping(".");
+    Map<String, Object> customAppEventMappingDefinition = TestValues.createCustomAppEventMapping(".", false);
     ((Map)customAppEventMappingDefinition.get("eventMapping")).remove("logfile");
     ((Map)customAppEventMappingDefinition.get("eventMapping")).remove("parser");
 
@@ -54,9 +62,12 @@ public class CustomAppEventMappingTest {
   /**
    * Verify JSON is parsed correctly to CustomAppEventMapping
    */
-  private void verifyCustomApplicationEventMapping(CustomAppEventMapping customAppEventMapping) {
-    assertEquals(ImmutableList.of("application", "name"), customAppEventMapping.getMatcherFields());
-    assertEquals(TestValues.CUSTOM_APP_NAME, customAppEventMapping.getMatcherValue());
+  private void verifyCustomApplicationEventMapping(CustomAppEventMapping customAppEventMapping, boolean isMatchAll) {
+    assertEquals(isMatchAll, customAppEventMapping.isMatchAll());
+    if (!isMatchAll) {
+      assertEquals(ImmutableList.of("application", "name"), customAppEventMapping.getMatcherFields());
+      assertEquals(TestValues.CUSTOM_APP_NAME, customAppEventMapping.getMatcherValue());
+    }
     assertEquals(ImmutableList.of("message"), customAppEventMapping.getMessageFields());
     assertEquals(ImmutableList.of("application", "name"), customAppEventMapping.getLogfileFields());
     assertEquals(ImmutableList.of("host", "hostname"), customAppEventMapping.getServerHostFields());

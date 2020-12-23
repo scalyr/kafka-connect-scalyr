@@ -23,9 +23,12 @@ import org.apache.kafka.connect.data.Schema;
 import org.apache.kafka.connect.data.SchemaBuilder;
 import org.apache.kafka.connect.data.Struct;
 import org.apache.kafka.connect.sink.SinkRecord;
-import org.junit.Before;
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
@@ -41,19 +44,30 @@ import static org.junit.Assert.assertTrue;
 /**
  * Test for CustomAppMessageMapper
  */
+@RunWith(Parameterized.class)
 public class CustomAppMessageMapperTest {
   private static final AtomicInteger offset = new AtomicInteger();
   private static final Random random = new Random();
   private MessageMapper messageMapper;
   private SinkRecordValueCreator sinkRecordValueCreator;
+  private boolean matchAll;
 
   private static final String topic = "test-topic";
   private static final int partition = 0;
+  private static final String matcherAttr = "application.name";
 
-  @Before
-  public void setup() {
-    messageMapper = new CustomAppMessageMapper(createCustomAppEventMapping());
-    sinkRecordValueCreator = new CustomAppRecordValueCreator();
+  @Parameterized.Parameters
+  public static Collection<Object[]> testParams() {
+    return Arrays.asList(new Object[][] { {createCustomAppEventMapping(), false},
+      {createCustomAppEventMapping().setMatcher(createMatcher(matcherAttr, "custom.*")), false},
+      {createCustomAppEventMapping().setMatcher(new CustomAppEventMapping.Matcher().setMatchAll(true)), true}});
+  }
+
+  public CustomAppMessageMapperTest(CustomAppEventMapping customAppEventMapping, boolean matchAll) {
+    this.messageMapper = new CustomAppMessageMapper(customAppEventMapping);
+    this.matchAll = matchAll;
+    this.sinkRecordValueCreator = new CustomAppRecordValueCreator();
+
   }
 
   /**
@@ -75,12 +89,19 @@ public class CustomAppMessageMapperTest {
       "failed", "failed",
       "activityType", "activityType"
     ));
-    CustomAppEventMapping.Matcher matcher = new CustomAppEventMapping.Matcher();
-    matcher.setAttribute("application.name");
-    matcher.setValue(TestValues.CUSTOM_APP_NAME);
-    customAppEventMapping.setMatcher(matcher);
+    customAppEventMapping.setMatcher(createMatcher(matcherAttr, TestValues.CUSTOM_APP_NAME));
 
     return customAppEventMapping;
+  }
+
+  /**
+   * @return CustomAppEventMapping.Matcher with specified matcher attr and value
+   */
+  private static CustomAppEventMapping.Matcher createMatcher(String attr, String value) {
+    CustomAppEventMapping.Matcher matcher = new CustomAppEventMapping.Matcher();
+    matcher.setAttribute(attr);
+    matcher.setValue(value);
+    return matcher;
   }
 
   /**
@@ -126,7 +147,7 @@ public class CustomAppMessageMapperTest {
     assertNull(messageMapper.getLogfile(record));
     assertNull(messageMapper.getParser(record));
     assertNull(messageMapper.getServerHost(record));
-    assertFalse(messageMapper.matches(record));
+    assertEquals(matchAll, messageMapper.matches(record));
     Map<String, Object> additionalAttrs = messageMapper.getAdditionalAttrs(record);
     assertTrue(additionalAttrs.containsKey("id"));
     assertTrue(additionalAttrs.containsKey("severity"));

@@ -54,6 +54,15 @@ import java.util.stream.Collectors;
 
  `matcher` defines an attribute to determine whether the event mapping applies to the message.
  The event mapping is only applied to messages where the `matcher.attribute` value matches the `matcher.value`.
+ `matcher.value` can be a regex.
+
+ `matcher` can also be defined to match all events:
+ ```
+ "matcher": {
+   "matchAll": true
+ }
+ ```
+ When `matchAll=true`, `attribute` and `value` fields are not required and are ignored.
 
  `eventMapping` defines the message fields that are mapped to Scalyr event attributes.
  The attribute is the Scalyr event key.  The attribute value specifies the
@@ -78,23 +87,27 @@ public class CustomAppEventMapping {
   public static final String LOG_FILE = "logfile";
   public static final String PARSER = "parser";
   public static final String MESSAGE = "message";
+  private static final String MATCHER_NOT_DEFINED_ERROR = "matcher not defined in custom application event mapping";
 
   private static final Set<String> standardAttrs = ImmutableSet.of(SERVER_HOST, LOG_FILE, PARSER, MESSAGE);
 
-  public void setMatcher(Matcher matcher) {
+  public CustomAppEventMapping setMatcher(Matcher matcher) {
     this.matcher = matcher;
+    return this;
   }
 
-  public void setEventMapping(Map<String, String> eventMapping) {
+  public CustomAppEventMapping setEventMapping(Map<String, String> eventMapping) {
     this.eventMapping = eventMapping;
+    return this;
   }
 
-  public void setDelimiter(String fieldDelimiter) {
+  public CustomAppEventMapping setDelimiter(String fieldDelimiter) {
     this.delimiter = fieldDelimiter;
+    return this;
   }
 
   public String getMatcherValue() {
-    Preconditions.checkArgument(matcher != null, "matcher not defined in custom application event mapping");
+    Preconditions.checkArgument(matcher != null, MATCHER_NOT_DEFINED_ERROR);
     return matcher.value;
   }
 
@@ -103,8 +116,13 @@ public class CustomAppEventMapping {
    * using the delimiter as the field separator.
    */
   public List<String> getMatcherFields() {
-    Preconditions.checkArgument(matcher != null, "matcher not defined in custom application event mapping");
+    Preconditions.checkArgument(matcher != null, MATCHER_NOT_DEFINED_ERROR);
     return splitAttrFields(matcher.attribute);
+  }
+
+  public boolean isMatchAll() {
+    Preconditions.checkArgument(matcher != null, MATCHER_NOT_DEFINED_ERROR);
+    return matcher.matchAll;
   }
 
   public List<String> getServerHostFields() {
@@ -147,15 +165,23 @@ public class CustomAppEventMapping {
    * Defines the field and value to determine whether the message matches the custom app event mapping.
    */
   public static class Matcher {
+    private boolean matchAll;
     private String attribute;
     private String value;
 
-    public void setAttribute(String attribute) {
-      this.attribute = attribute;
+    public Matcher setMatchAll(Boolean matchAll) {
+      this.matchAll = matchAll;
+      return this;
     }
 
-    public void setValue(String value) {
+    public Matcher setAttribute(String attribute) {
+      this.attribute = attribute;
+      return this;
+    }
+
+    public Matcher setValue(String value) {
       this.value = value;
+      return this;
     }
 
     @Override

@@ -65,9 +65,12 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
     + BATCH_SEND_SIZE_BYTES_CONFIG + " may not be reached for longer periods of time.";
   public static final String CUSTOM_APP_EVENT_MAPPING_CONFIG = "custom_app_event_mapping";
   private static final String CUSTOM_APP_EVENT_MAPPING_DOC = "JSON config describing how to map custom application nested Kafka messages to Scalyr events." +
-    "  Multiple custom application event mappings can be specified in a JSON list.  Example config JSON:\n"
-    + "[{\"matcher\": { \"attribute\": \"app.name\", \"value\": \"customApp\"},\n" +
-    " \"eventMapping\": { \"message\": \"message\", \"logfile\": \"log.path\", \"serverHost\": \"host.hostname\", \"parser\": \"fields.parser\", \"version\": \"app.version\"} }]";
+    "  Multiple custom application event mappings can be specified in a JSON list and are evaluated in the order specified in the list." +
+    "  The matcher.value supports regex to match the entire field value.  Example config JSON:\n" +
+    "[{\"matcher\": { \"attribute\": \"app.name\", \"value\": \"mpApp.*\"},\n" +
+    " \"eventMapping\": { \"message\": \"message\", \"logfile\": \"log.path\", \"serverHost\": \"host.hostname\", \"parser\": \"fields.parser\", \"version\": \"app.version\"} },\n" +
+    "{\"matcher\": { \"matchAll\": true},\n" +
+    " \"eventMapping\": { \"message\": \"message\", \"logfile\": \"log.path\", \"serverHost\": \"host.hostname\", \"parser\": \"fields.parser\"} }]";
   public static final String SEND_ENTIRE_RECORD = "send_entire_record";
   private static final String SEND_ENTIRE_RECORD_DOC = "If true, send the entire Kafka Connect record value serialized to JSON as the message field.";
 
@@ -138,10 +141,23 @@ public class ScalyrSinkConnectorConfig extends AbstractConfig {
       if (customAppEventMappings.isEmpty()) {
         throw new ConfigException("No custom event mappings are defined");
       }
+      int numMatchAll = 0;
       for (CustomAppEventMapping mapping : customAppEventMappings) {
-        if (mapping.getMatcherFields().isEmpty() || Strings.isNullOrEmpty(mapping.getMatcherValue())) {
+        if (!mapping.isMatchAll() && (mapping.getMatcherFields().isEmpty() || Strings.isNullOrEmpty(mapping.getMatcherValue()))) {
           throw new ConfigException("Custom event application mapping matcher not defined");
         }
+        if (mapping.isMatchAll()) {
+          numMatchAll++;
+        }
+      }
+
+      // Only one matchAll is allowed to avoid ambiguity
+      if (numMatchAll > 1) {
+        throw new ConfigException("More than one match all custom event mapping matcher is defined");
+      }
+      // Custom event mappings are evaluated in order.  Match all should be last so that other custom event mappings are evaluated.
+      if (numMatchAll == 1 && !customAppEventMappings.get(customAppEventMappings.size() - 1).isMatchAll()) {
+        throw new ConfigException("Custom event mapper with matchAll=true must be listed last. Otherwise, some mappers would be ignored.");
       }
     } catch (IOException | IllegalArgumentException e) {
       throw new ConfigException("Invalid custom application event mapping JSON", e);

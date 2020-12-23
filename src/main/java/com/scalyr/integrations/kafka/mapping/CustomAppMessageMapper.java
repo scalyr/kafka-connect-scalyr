@@ -21,6 +21,7 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /**
  * Maps custom app messages to Scalyr events using {@link CustomAppEventMapping} event mapping definition.
@@ -32,7 +33,8 @@ public class CustomAppMessageMapper implements MessageMapper {
   private final List<String> parserFields;
   private final List<String> matcherFields;
   private final Map<String, List<String>> additionalAttrsFields;
-  private final String matcherValue;
+  private final Pattern matcherRegex;
+  private final boolean matchAll;
 
   /**
    * CustomApplicationDefinition fields are memoized to instance variables
@@ -44,8 +46,9 @@ public class CustomAppMessageMapper implements MessageMapper {
     serverHostFields = customAppEventMapping.getServerHostFields();
     parserFields = customAppEventMapping.getParserFields();
     matcherFields = customAppEventMapping.getMatcherFields();
+    matchAll = customAppEventMapping.isMatchAll();
+    matcherRegex = matchAll ? null : Pattern.compile(customAppEventMapping.getMatcherValue());
     additionalAttrsFields = customAppEventMapping.getAdditionalAttrFields();
-    matcherValue = customAppEventMapping.getMatcherValue();
   }
 
   @Override
@@ -78,7 +81,11 @@ public class CustomAppMessageMapper implements MessageMapper {
 
   @Override
   public boolean matches(SinkRecord record) {
+    if (matchAll) {
+      return true;
+    }
+
     Object fieldValue = FieldExtractor.getField(record.value(), matcherFields);
-    return matcherValue.equals(fieldValue);
+    return fieldValue == null ? false : matcherRegex.matcher(fieldValue.toString()).matches();
   }
 }

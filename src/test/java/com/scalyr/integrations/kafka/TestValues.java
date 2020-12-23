@@ -19,8 +19,8 @@ package com.scalyr.integrations.kafka;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -57,6 +57,7 @@ public abstract class TestValues {
   public static final String ADD_EVENTS_RESPONSE_INPUT_TOO_LONG;
   public static final String CUSTOM_APP_EVENT_MAPPING_JSON;
   public static final String CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON;
+  public static final String CUSTOM_APP_MATCH_ALL_EVENT_MAPPING_JSON;
 
 
   static {
@@ -72,8 +73,10 @@ public abstract class TestValues {
       ADD_EVENTS_RESPONSE_INPUT_TOO_LONG = objectMapper.writeValueAsString(new AddEventsClient.AddEventsResponse()
         .setStatus("error/client/badParam").setMessage("input too long (maximum 6000000 characters)"));
 
-      CUSTOM_APP_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping(".")));
-      CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping("_")));
+      CUSTOM_APP_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping(".", false)));
+      CUSTOM_APP_EVENT_MAPPING_WITH_DELIMITER_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping("_", false)));
+      CUSTOM_APP_MATCH_ALL_EVENT_MAPPING_JSON = objectMapper.writeValueAsString(Collections.singletonList(createCustomAppEventMapping(".", true)));
+
     } catch (JsonProcessingException e) {
       throw new RuntimeException(e);
     }
@@ -82,11 +85,15 @@ public abstract class TestValues {
   /**
    * Create test custom app event mapping as data structure that can be serialized to JSON.
    */
-  public static Map<String, Object> createCustomAppEventMapping(String delimiter) {
+  public static Map<String, Object> createCustomAppEventMapping(String delimiter, boolean matchAll) {
     Map<String, Object> customAppEventMapper = new HashMap<>();
-    customAppEventMapper.put("matcher", TestUtils.makeMap(
-      "attribute", "application" + delimiter + "name",
-      "value", CUSTOM_APP_NAME));
+    if (matchAll) {
+      customAppEventMapper.put("matcher", ImmutableMap.of("matchAll", true));
+    } else {
+      customAppEventMapper.put("matcher", TestUtils.makeMap(
+        "attribute", "application" + delimiter + "name",
+        "value", CUSTOM_APP_NAME));
+    }
 
     customAppEventMapper.put("eventMapping", TestUtils.makeMap(
       "message", "message",

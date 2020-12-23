@@ -34,7 +34,9 @@ import java.util.function.Supplier;
 /**
  * Converts a SinkRecord to a Scalyr Event.
  * Determines which {@link MessageMapper} to use and maps the SinkRecord to an Event using the
- * MessageMapper.
+ * MessageMapper.  MessageMappers are evaluated in the following order:
+ * 1. Scalyr supported message sources
+ * 2. Custom app event mappers in the order they are defined in connector config.
  */
 public class EventMapper {
   private static final Logger log = LoggerFactory.getLogger(EventMapper.class);

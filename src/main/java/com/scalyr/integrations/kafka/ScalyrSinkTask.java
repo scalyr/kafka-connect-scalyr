@@ -17,6 +17,7 @@
 package com.scalyr.integrations.kafka;
 
 import com.google.common.annotations.VisibleForTesting;
+import com.google.common.util.concurrent.RateLimiter;
 import com.scalyr.api.internal.ScalyrUtil;
 import com.scalyr.integrations.kafka.mapping.CustomAppEventMapping;
 import com.scalyr.integrations.kafka.mapping.EventMapper;
@@ -39,6 +40,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.LongConsumer;
 import java.util.stream.Collectors;
 
@@ -73,6 +75,8 @@ public class ScalyrSinkTask extends SinkTask {
   private int batchSendWaitMs;
 
   private long lastBatchSendTimeMs;
+
+  private static final RateLimiter noRecordLogRateLimiter = RateLimiter.create(1.0/30);  // 1 permit every 30 seconds to not log
 
   /**
    * Default constructor called by Kafka Connect.
@@ -146,15 +150,22 @@ public class ScalyrSinkTask extends SinkTask {
       throw lastError;
     }
 
+    AtomicInteger recordCount = new AtomicInteger();
     records.stream()
       .map(eventMapper::createEvent)
       .filter(Objects::nonNull)
       .forEach(event -> {
+        recordCount.incrementAndGet();
         if (eventBuffer.estimatedSerializedBytes() + event.estimatedSerializedBytes() >= batchSendSizeBytes) {
           sendEvents();
         }
         eventBuffer.addEvent(event);
       });
+
+    // No early return when recordCount == 0 to send events when batchSendWaitMs exceeded
+    if (recordCount.get() == 0 && noRecordLogRateLimiter.tryAcquire()) {
+      log.warn("No records matched an event mapper.  Records not sent to Scalyr.  Check the custom_app_event_mapping matcher configuration.");
+    }
 
     // Send events when batchSendWaitMs exceeded
     if (ScalyrUtil.currentTimeMillis() - lastBatchSendTimeMs >= batchSendWaitMs) {
@@ -166,6 +177,9 @@ public class ScalyrSinkTask extends SinkTask {
    * Call addEvents with EventBuffer
    */
   private void sendEvents() {
+    if (eventBuffer.length() == 0) {
+      return;
+    }
     PerfStats perfStats = new PerfStats(log);
     perfStats.recordEvents(eventBuffer);
     pendingAddEvents = addEventsClient.log(eventBuffer.getEvents(), pendingAddEvents).whenComplete(this::processResponse);
@@ -188,9 +202,7 @@ public class ScalyrSinkTask extends SinkTask {
     log.debug("Flushing data to Scalyr with the following offsets: {}", currentOffsets);
 
     // Send pending events in buffer
-    if (eventBuffer.length() > 0) {
-      sendEvents();
-    }
+    sendEvents();
 
     // Wait for in-flight addEvents requests to complete
     waitForRequestsToComplete();
