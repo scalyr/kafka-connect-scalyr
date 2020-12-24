@@ -26,7 +26,6 @@ import okhttp3.Headers;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.apache.http.entity.ContentType;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.junit.After;
@@ -34,6 +33,7 @@ import org.junit.Before;
 import org.junit.Ignore;
 import org.junit.Test;
 
+import javax.ws.rs.core.MediaType;
 import java.io.BufferedInputStream;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -293,7 +293,7 @@ public class AddEventsClientTest {
     mockSleep.reset();
     addEventsClient = new AddEventsClient("http://localhost", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockSleep.sleep);
     addEventsResponse = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1)).get(5, TimeUnit.MINUTES);
-    assertEquals("IOException", addEventsResponse.getStatus());
+    assertEquals("addEvents error", addEventsResponse.getStatus());
     assertEquals(EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
   }
 
@@ -564,8 +564,8 @@ public class AddEventsClientTest {
    * Verify HTTP request headers are set correctly.
    */
   private void verifyHeaders(Headers headers, Compressor compressor) {
-    assertEquals(ContentType.APPLICATION_JSON.toString(), headers.get("Content-type"));
-    assertEquals(ContentType.APPLICATION_JSON.toString(), headers.get("Accept"));
+    assertEquals(MediaType.APPLICATION_JSON, headers.get("Content-type"));
+    assertEquals(MediaType.APPLICATION_JSON, headers.get("Accept"));
     assertEquals("Keep-Alive", headers.get("Connection"));
     assertEquals(expectedUserAgent, headers.get("User-Agent"));
     assertEquals(compressor.getContentEncoding(), headers.get("Content-Encoding"));
