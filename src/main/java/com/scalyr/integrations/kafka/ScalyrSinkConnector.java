@@ -58,6 +58,7 @@ public class ScalyrSinkConnector extends SinkConnector {
     }
 
     this.configProps = Collections.unmodifiableMap(configProps);
+    AddEventsClient.HttpWrapper.start();
     log.info("Started ScalyrSinkConnector");
   }
 
@@ -80,9 +81,9 @@ public class ScalyrSinkConnector extends SinkConnector {
 
   /**
    * Stop this connector.
-   * No actions needed.
    */
   @Override public void stop() {
+    AddEventsClient.HttpWrapper.stop();
     log.info("Stopped ScalyrSinkConnector");
   }
 

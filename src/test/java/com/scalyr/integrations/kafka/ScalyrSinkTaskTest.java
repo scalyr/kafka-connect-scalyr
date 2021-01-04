@@ -30,6 +30,7 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -88,6 +89,11 @@ public class ScalyrSinkTaskTest {
     Object data = recordValue.apply(1, 1, 1);
     System.out.println("Executing test with " + (data instanceof Struct ? "schema" : "schemaless") + " recordValue: " + data);
 
+  }
+
+  @BeforeClass
+  public static void setupResources() {
+    AddEventsClient.HttpWrapper.start();
   }
 
   @Before
@@ -508,7 +514,6 @@ public class ScalyrSinkTaskTest {
   /**
    * Verify stop doesn't throw any exceptions
    */
-  @Ignore("Test closes AddEventsClient AsyncHttpClient, which causes subsequent tests to fail")
   @Test
   public void testStop() {
     Map<String, String> config = createConfig();

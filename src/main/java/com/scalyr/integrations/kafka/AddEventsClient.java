@@ -66,16 +66,16 @@ import static org.asynchttpclient.Dsl.*;
  *
  * @see <a href="https://app.scalyr.com/help/api"></a>
  */
-public class AddEventsClient implements AutoCloseable {
+public class AddEventsClient {
 
   private static final Logger log = LoggerFactory.getLogger(AddEventsClient.class);
 
   // Separate logger which is used for logging the whole payload when the payload exceeds the limit
   private static final Logger payloadLogger = LoggerFactory.getLogger("com.scalyr.integrations.kafka.eventpayload");
 
-  private static final AsyncHttpClient asyncHttpClient = asyncHttpClient();
   private final ObjectMapper objectMapper = new ObjectMapper();
   private final ExecutorService retryThread = Executors.newSingleThreadExecutor();
+  /** Bound http request builder is bound to the AsyncHttpClient and allows us to issue the http request without specifying the AsyncHttpClient */
   private final BoundRequestBuilder requestBuilder;
   private final String apiKey;
   private final long addEventsTimeoutMs;
@@ -127,7 +127,7 @@ public class AddEventsClient implements AutoCloseable {
     this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
     this.sleep = sleep != null ? sleep : timeMs -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
-    this.requestBuilder = asyncHttpClient.preparePost(buildAddEventsUri(scalyrUrl));
+    this.requestBuilder = HttpWrapper.asyncHttpClient.preparePost(buildAddEventsUri(scalyrUrl));
     addHeaders();
   }
 
@@ -352,15 +352,6 @@ public class AddEventsClient implements AutoCloseable {
    */
   private long remainingMs(long startTimeMs) {
     return Math.max(addEventsTimeoutMs - (ScalyrUtil.currentTimeMillis() - startTimeMs), 0);
-  }
-
-  @Override
-  public void close() {
-    try {
-      asyncHttpClient.close();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   /**
@@ -597,6 +588,29 @@ public class AddEventsClient implements AutoCloseable {
         "\"status\":\"" + status + '"' +
         ", \"message\":\"" + message + '"' +
         '}';
+    }
+  }
+
+  /**
+   * Wrapper class to manage AsyncHttpClient life cycle.
+   * AsyncHttpClient is a global resource that matches the connector lifecycle.
+   * start/stop should be called by the ScalyrSinkConnector start/stop lifecycle methods.
+   */
+  public static class HttpWrapper {
+    private static AsyncHttpClient asyncHttpClient;
+
+    public static void start() {
+      asyncHttpClient = asyncHttpClient();
+    }
+
+    public static void stop() {
+      if (asyncHttpClient != null) {
+        try {
+          asyncHttpClient.close();
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
     }
   }
 }

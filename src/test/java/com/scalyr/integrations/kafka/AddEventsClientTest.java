@@ -30,6 +30,7 @@ import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
 import org.junit.After;
 import org.junit.Before;
+import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -92,6 +93,11 @@ public class AddEventsClientTest {
   private String scalyrUrl;
   private Compressor compressor;
   private Compressor deflateCompressor;
+
+  @BeforeClass
+  public static void setupResources() {
+    AddEventsClient.HttpWrapper.start();
+  }
 
   @Before
   public void setup() {
