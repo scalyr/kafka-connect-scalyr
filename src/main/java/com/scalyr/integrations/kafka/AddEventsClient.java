@@ -29,37 +29,35 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.CountingOutputStream;
 import com.google.common.util.concurrent.RateLimiter;
-import com.google.common.util.concurrent.Uninterruptibles;
 import com.scalyr.api.internal.ScalyrUtil;
-import org.apache.http.HttpStatus;
-import org.apache.http.client.methods.CloseableHttpResponse;
-import org.apache.http.client.methods.HttpPost;
-import org.apache.http.client.utils.URIBuilder;
-import org.apache.http.entity.ByteArrayEntity;
-import org.apache.http.entity.ContentType;
-import org.apache.http.impl.client.CloseableHttpClient;
-import org.apache.http.impl.client.HttpClients;
+import org.asynchttpclient.AsyncHttpClient;
+import org.asynchttpclient.BoundRequestBuilder;
+import org.asynchttpclient.ListenableFuture;
+import org.asynchttpclient.Response;
+import org.asynchttpclient.uri.Uri;
+import org.asynchttpclient.util.HttpConstants;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import javax.annotation.Nullable;
+import javax.ws.rs.core.MediaType;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongConsumer;
+import java.util.function.BiConsumer;
+
+import static org.asynchttpclient.Dsl.*;
 
 /**
  * AddEventsClients provides abstraction for making Scalyr addEvents API calls.
@@ -67,17 +65,18 @@ import java.util.function.LongConsumer;
  *
  * @see <a href="https://app.scalyr.com/help/api"></a>
  */
-public class AddEventsClient implements AutoCloseable {
+public class AddEventsClient {
 
   private static final Logger log = LoggerFactory.getLogger(AddEventsClient.class);
 
   // Separate logger which is used for logging the whole payload when the payload exceeds the limit
   private static final Logger payloadLogger = LoggerFactory.getLogger("com.scalyr.integrations.kafka.eventpayload");
 
-  private final CloseableHttpClient client = HttpClients.createDefault();
   private final ObjectMapper objectMapper = new ObjectMapper();
-  private final ExecutorService senderThread = Executors.newSingleThreadExecutor();
-  private final HttpPost httpPost;
+  /** Single ScheduledExecutorService to handle delayed retries for all ScalyrSinkTask instances. */
+  private static final ScheduledExecutorService retryExecutor = Executors.newScheduledThreadPool(1);
+  /** Bound http request builder is bound to the AsyncHttpClient and allows us to issue the http request without specifying the AsyncHttpClient */
+  private final BoundRequestBuilder requestBuilder;
   private final String apiKey;
   private final long addEventsTimeoutMs;
   private final int initialBackoffDelayMs;
@@ -86,10 +85,11 @@ public class AddEventsClient implements AutoCloseable {
   private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
   /**
-   * Performs sleep for specified time period is ms.  In tests, this can be a Mockable sleep.
-   * @param sleepMs Time in millisecs to sleep.
+   * Runs task with delay.  In tests, the delay can be mocked.
+   * @param delayMs Time in millisecs to delay.
+   * @param task Task to run
    */
-  private final LongConsumer sleep;
+  private final BiConsumer<Integer, Runnable> runWithDelay;
 
   /** Session ID per Task */
   private final String sessionId = UUID.randomUUID().toString();
@@ -118,22 +118,22 @@ public class AddEventsClient implements AutoCloseable {
   private static final RateLimiter payloadTooLargeLogRateLimiter = RateLimiter.create(1.0/900);  // 1 permit every 15 minutes
 
   /**
-   * AddEventsClient which allows a mockable sleep for testing.
-   * @param sleep Mockable sleep implementation.  If null, default implementation which sleeps will be used.
+   * AddEventsClient which allows a mockable runWithDelay for testing.
+   * @param runWithDelay Mockable runWithDelay implementation.  If null, default implementation which delays with ScheduledExecutorService is used.
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable LongConsumer sleep) {
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable BiConsumer<Integer, Runnable> runWithDelay) {
     this.apiKey = apiKey;
     this.addEventsTimeoutMs = addEventsTimeoutMs;
     this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
-    this.sleep = sleep != null ? sleep : timeMs -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
-    this.httpPost = new HttpPost(buildAddEventsUri(scalyrUrl));
+    this.runWithDelay = runWithDelay != null ? runWithDelay : (delayMs, task) -> retryExecutor.schedule(task, delayMs, TimeUnit.MILLISECONDS);
+    this.requestBuilder = HttpWrapper.asyncHttpClient.preparePost(buildAddEventsUri(scalyrUrl));
     addHeaders();
   }
 
   /**
-   * AddEventsClient with default sleep implementation, which performs sleep.
+   * AddEventsClient with default runWithDelay implementation, which performs runWithDelay with ScheduledExecutorService.
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
   public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor) {
@@ -176,7 +176,9 @@ public class AddEventsClient implements AutoCloseable {
       }
 
       final byte[] addEventsPayload = outputStream.toByteArray();
-      return CompletableFuture.supplyAsync(() -> addEventsWithRetry(addEventsPayload, uncompressedPayloadSize, startTimeMs), senderThread);
+      CompletableFuture<AddEventsResponse> addEventsResult = new CompletableFuture<>();
+      addEventsWithRetry(addEventsPayload, uncompressedPayloadSize, addEventsResult, startTimeMs, initialBackoffDelayMs);
+      return addEventsResult;
     } catch (Exception e) {
       log.warn("AddEventsClient.log error", e);
       CompletableFuture<AddEventsResponse> errorFuture = new CompletableFuture<>();
@@ -193,13 +195,18 @@ public class AddEventsClient implements AutoCloseable {
   }
 
   /**
-   * Call Scalyr addEvents API with {@link #addEventsTimeoutMs} using exponential backoff.
+   * Call Scalyr addEvents API with {@link #addEventsTimeoutMs} using exponential backoff retries.
+   * Retries are triggered async when the async add events call completes by recursively calling this method.
+   * Result is returned by completing the `addEventsResult` future with the result.
+   *
    * @param addEventsPayload byte[] addEvents payload (post compression if compression is enabled).
    * @param uncompressedPayloadSize long raw serialized JSON addEvents payload size before the compression.
+   * @param addEventsResult CompletableFuture to return add events result in.
    * @param startTimeMs time in ms from epoch when `log` is called.  Used to enforce `addEventsTimeoutMs` deadline.
-   * @return AddEventsResponse
+   * @param retryDelayMs time in ms to delay retry
    */
-  private AddEventsResponse addEventsWithRetry(byte[] addEventsPayload, long uncompressedPayloadSize, long startTimeMs) {
+  private void addEventsWithRetry(byte[] addEventsPayload, long uncompressedPayloadSize, CompletableFuture<AddEventsResponse> addEventsResult,
+      long startTimeMs, int retryDelayMs) {
     log.debug("addEvents payload uncompressed size {} bytes, compressed size {} bytes", uncompressedPayloadSize, addEventsPayload.length);
 
     // 6 MB add events payload exceeded.  Log the issue and skip this message.
@@ -215,47 +222,54 @@ public class AddEventsClient implements AutoCloseable {
         byte[] decompressedPayload = getDecompressedPayload(addEventsPayload);
         payloadLogger.error("Add events too large payload: {}", new String(decompressedPayload));
       }
-      return PAYLOAD_TOO_LARGE;
+      addEventsResult.complete(PAYLOAD_TOO_LARGE);
+      return;
     }
 
-    AddEventsResponse addEventsResponse = TIMEOUT_ADD_EVENTS_RESPONSE;
-    long delayTimeMs = initialBackoffDelayMs;
-    httpPost.setEntity(new ByteArrayEntity(addEventsPayload));
+    // Retries timed out
+    if (remainingMs(startTimeMs) == 0) {
+      addEventsResult.complete(TIMEOUT_ADD_EVENTS_RESPONSE);
+      return;
+    }
 
-    boolean shouldCallAddEvents = remainingMs(startTimeMs) > 0;
-    while (shouldCallAddEvents) {
-      try (CloseableHttpResponse httpResponse = client.execute(httpPost)) {
-        addEventsResponse = parseAddEventsResponse(httpResponse);
-        log.debug("post http code {}, httpResponse {}", httpResponse.getStatusLine().getStatusCode(), addEventsResponse);
-        // return on success or non-retriable error
+    requestBuilder.setBody(addEventsPayload);
+    final ListenableFuture<Response> addEventsFuture = requestBuilder.execute();
+    addEventsFuture.addListener(() -> {
+      AddEventsResponse addEventsResponse;
+      try {
+        final Response response = addEventsFuture.get();
+        addEventsResponse = parseAddEventsResponse(response);
+        log.debug("post http code {}, httpResponse {}", response.getStatusCode(), addEventsResponse);
         if (addEventsResponse.isSuccess() || !addEventsResponse.isRetriable()) {
-          return addEventsResponse;
+          addEventsResult.complete(addEventsResponse);
+          return;
         }
-      } catch (IOException e) {
-        log.warn("Error calling Scalyr addEvents API", e);
-        addEventsResponse = new AddEventsResponse().setStatus("IOException").setMessage(e.toString());
+      } catch (Exception e) {
+        Throwable rootCauseException = e.getCause() == null ? e : e.getCause();
+        addEventsResponse = new AddEventsResponse().setStatus("addEvents error").setMessage(rootCauseException.toString());
       }
 
-      shouldCallAddEvents = remainingMs(startTimeMs) > delayTimeMs;
-      if (shouldCallAddEvents) {
-        sleep.accept(delayTimeMs);
-        delayTimeMs = delayTimeMs * 2;
-      }
-    }
+      // error - retry if not timed out and retriable, otherwise, complete with failure
+      log.warn("addEvents failed with {}", addEventsResponse);
+      if (remainingMs(startTimeMs) > retryDelayMs && addEventsResponse.isRetriable()) {
+        runWithDelay.accept(retryDelayMs, () ->
+          addEventsWithRetry(addEventsPayload, uncompressedPayloadSize, addEventsResult, startTimeMs, retryDelayMs * 2));
 
-    return addEventsResponse;
+      } else {
+        addEventsResult.complete(addEventsResponse);
+      }
+    }, null); // null executor runs listener on IO thread
   }
 
   /**
-   * Convert httpResponse into AddEventsResponse, handling different error conditions.
-   * @param httpResponse HTTP response from the addEvents call
+   * Convert Response into AddEventsResponse, handling different error conditions.
+   * @param response Response from the addEvents call
    * @return AddEventsResponse
    */
-  private AddEventsResponse parseAddEventsResponse(CloseableHttpResponse httpResponse) {
-    final int statusCode = httpResponse.getStatusLine().getStatusCode();
-    final long responseLength = httpResponse.getEntity().getContentLength();
+  private AddEventsResponse parseAddEventsResponse(Response response) {
+    final int statusCode = response.getStatusCode();
 
-    if (responseLength == 0) {
+    if (!response.hasResponseBody()) {
       log.warn("addEvents received empty response, server may have reset connection.");
       return new AddEventsResponse().setStatus("emptyResponse");
     }
@@ -266,10 +280,10 @@ public class AddEventsClient implements AutoCloseable {
     }
 
     try {
-      AddEventsResponse addEventsResponse = objectMapper.readValue(httpResponse.getEntity().getContent(), AddEventsResponse.class);
+      AddEventsResponse addEventsResponse = objectMapper.readValue(response.getResponseBodyAsBytes(), AddEventsResponse.class);
 
       // Success
-      if (statusCode == HttpStatus.SC_OK && addEventsResponse.isSuccess()) {
+      if (statusCode == HttpConstants.ResponseStatusCodes.OK_200 && addEventsResponse.isSuccess()) {
         return addEventsResponse;
       }
 
@@ -312,31 +326,26 @@ public class AddEventsClient implements AutoCloseable {
    * @return Scalyr addEvents URI.  e.g. https://apps.scalyr.com/addEvents
    * @throws IllegalArgumentException with invalid Scalyr URL
    */
-  private URI buildAddEventsUri(String url) {
-    try {
-      URIBuilder urlBuilder = new URIBuilder(url);
+  private String buildAddEventsUri(String url) {
+      Uri uri = Uri.create(url);
 
       // Enforce https for Scalyr connection
-      Preconditions.checkArgument((urlBuilder.getScheme() != null && urlBuilder.getHost() != null)
-        && ((!"localhost".equals(urlBuilder.getHost()) && "https".equals(urlBuilder.getScheme())) || "localhost".equals(urlBuilder.getHost())),
+      Preconditions.checkArgument((uri.getScheme() != null && uri.getHost() != null)
+        && ((!"localhost".equals(uri.getHost()) && Uri.HTTPS.equals(uri.getScheme())) || "localhost".equals(uri.getHost())),
         "Invalid Scalyr URL: {}", url);
 
-      urlBuilder.setPath("addEvents");
-      return  urlBuilder.build();
-    } catch (URISyntaxException e) {
-      throw new IllegalArgumentException(e);
-    }
+      return new Uri(uri.getScheme(), null, uri.getHost(), uri.getPort(), "/addEvents", null, null).toFullUrl();
   }
 
   /**
    * Add addEvents POST request headers
    */
   private void addHeaders() {
-    httpPost.addHeader("Content-type", ContentType.APPLICATION_JSON.toString());
-    httpPost.addHeader("Accept", ContentType.APPLICATION_JSON.toString());
-    httpPost.addHeader("Connection", "Keep-Alive");
-    httpPost.addHeader("User-Agent", USER_AGENT);
-    httpPost.addHeader("Content-Encoding", compressor.getContentEncoding());
+    requestBuilder.addHeader("Content-type", MediaType.APPLICATION_JSON);
+    requestBuilder.addHeader("Accept", MediaType.APPLICATION_JSON);
+    requestBuilder.addHeader("Connection", "Keep-Alive");
+    requestBuilder.addHeader("User-Agent", USER_AGENT);
+    requestBuilder.addHeader("Content-Encoding", compressor.getContentEncoding());
   }
 
   /**
@@ -345,15 +354,6 @@ public class AddEventsClient implements AutoCloseable {
    */
   private long remainingMs(long startTimeMs) {
     return Math.max(addEventsTimeoutMs - (ScalyrUtil.currentTimeMillis() - startTimeMs), 0);
-  }
-
-  @Override
-  public void close() {
-    try {
-      client.close();
-    } catch (IOException e) {
-      throw new RuntimeException(e);
-    }
   }
 
   /**
@@ -590,6 +590,29 @@ public class AddEventsClient implements AutoCloseable {
         "\"status\":\"" + status + '"' +
         ", \"message\":\"" + message + '"' +
         '}';
+    }
+  }
+
+  /**
+   * Wrapper class to manage AsyncHttpClient life cycle.
+   * AsyncHttpClient is a global resource that matches the connector lifecycle.
+   * start/stop should be called by the ScalyrSinkConnector start/stop lifecycle methods.
+   */
+  public static class HttpWrapper {
+    private static AsyncHttpClient asyncHttpClient;
+
+    public static void start() {
+      asyncHttpClient = asyncHttpClient();
+    }
+
+    public static void stop() {
+      if (asyncHttpClient != null) {
+        try {
+          asyncHttpClient.close();
+        } catch (IOException e) {
+          throw new RuntimeException(e);
+        }
+      }
     }
   }
 }
