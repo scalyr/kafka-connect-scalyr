@@ -41,7 +41,7 @@ import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongConsumer;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 /**
@@ -55,8 +55,8 @@ public class ScalyrSinkTask extends SinkTask {
   private EventMapper eventMapper;
   private int addEventsTimeoutMs;
 
-  /** Mockable sleep implementation for testing.  Always null when not in test. */
-  @Nullable private final LongConsumer sleep;
+  /** Mockable runWithDelay implementation for testing.  Always null when not in test. */
+  @Nullable private final BiConsumer<Integer, Runnable> runWithDelay;
 
   private CompletableFuture<AddEventsResponse> pendingAddEvents;
   private volatile ConnectException lastError;
@@ -82,15 +82,15 @@ public class ScalyrSinkTask extends SinkTask {
    * Default constructor called by Kafka Connect.
    */
   public ScalyrSinkTask() {
-    sleep = null;  // Default sleep implementation used.
+    runWithDelay = null;  // Default runWithDelay implementation used.
   }
 
   /**
-   * Only used for testing to provide mockable sleep implementation.
-   * @param sleep Mock sleep implementation
+   * Only used for testing to provide mockable delay implementation.
+   * @param runWithDelay Mock delay and run implementation
    */
-  @VisibleForTesting ScalyrSinkTask (@Nullable LongConsumer sleep) {
-    this.sleep = sleep;
+  @VisibleForTesting ScalyrSinkTask (@Nullable BiConsumer<Integer, Runnable> runWithDelay) {
+    this.runWithDelay = runWithDelay;
   }
 
   @Override
@@ -115,7 +115,7 @@ public class ScalyrSinkTask extends SinkTask {
       sinkConfig.getInt(ScalyrSinkConnectorConfig.ADD_EVENTS_RETRY_DELAY_MS_CONFIG),
       CompressorFactory.getCompressor(sinkConfig.getString(ScalyrSinkConnectorConfig.COMPRESSION_TYPE_CONFIG),
         sinkConfig.getInt(ScalyrSinkConnectorConfig.COMPRESSION_LEVEL_CONFIG)),
-      sleep);
+      runWithDelay);
 
     this.eventMapper = new EventMapper(
       parseEnrichmentAttrs(sinkConfig.getList(ScalyrSinkConnectorConfig.EVENT_ENRICHMENT_CONFIG)),

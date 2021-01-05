@@ -39,7 +39,7 @@ import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.LongConsumer;
+import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -250,35 +250,36 @@ public class TestUtils {
   }
 
   /**
-   * Mock sleep implementation.
-   * Tracks total time slept so sleep time and be verified
+   * Mock runWithDelay implementation.
+   * Tracks total time delayed so delay time can be verified
    * and advances the ScalyrUtil mockable timer to simulate time advancing.
    */
-  public static class MockSleep {
+  public static class MockRunWithDelay {
 
     /**
-     * Total time slept
+     * Total time delayed
      */
-    public final AtomicLong sleepTime = new AtomicLong();
+    public final AtomicLong delayTime = new AtomicLong();
 
     /**
-     * Sleep lambda should be called in place of actual sleep
+     * runWithDelay lambda should be called in simulate delay and running task
      */
-    public final LongConsumer sleep = (timeMs) -> {
-      sleepTime.addAndGet(timeMs);
+    public final BiConsumer<Integer, Runnable> runWithDelay = (timeMs, task) -> {
+      delayTime.addAndGet(timeMs);
       ScalyrUtil.advanceCustomTimeMs(timeMs);
+      task.run();
     };
 
-    public MockSleep() {
+    public MockRunWithDelay() {
       ScalyrUtil.setCustomTimeNs(0);
     }
 
     /**
-     * Resets the total sleep time and mockable clock.
-     * Should be called each time a new sleep duration needs to be measured.
+     * Resets the total delay time and mockable clock.
+     * Should be called each time a new delay duration needs to be measured.
      */
     public void reset() {
-      sleepTime.set(0);
+      delayTime.set(0);
       ScalyrUtil.setCustomTimeNs(0);
     }
   }

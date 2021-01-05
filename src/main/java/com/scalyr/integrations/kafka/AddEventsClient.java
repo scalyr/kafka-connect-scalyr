@@ -29,7 +29,6 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.io.ByteStreams;
 import com.google.common.io.CountingOutputStream;
 import com.google.common.util.concurrent.RateLimiter;
-import com.google.common.util.concurrent.Uninterruptibles;
 import com.scalyr.api.internal.ScalyrUtil;
 import org.asynchttpclient.AsyncHttpClient;
 import org.asynchttpclient.BoundRequestBuilder;
@@ -52,11 +51,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.function.LongConsumer;
+import java.util.function.BiConsumer;
 
 import static org.asynchttpclient.Dsl.*;
 
@@ -74,7 +73,8 @@ public class AddEventsClient {
   private static final Logger payloadLogger = LoggerFactory.getLogger("com.scalyr.integrations.kafka.eventpayload");
 
   private final ObjectMapper objectMapper = new ObjectMapper();
-  private final ExecutorService retryThread = Executors.newSingleThreadExecutor();
+  /** Single ScheduledExecutorService to handle delayed retries for all ScalyrSinkTask instances. */
+  private static final ScheduledExecutorService retryExecutor = Executors.newScheduledThreadPool(1);
   /** Bound http request builder is bound to the AsyncHttpClient and allows us to issue the http request without specifying the AsyncHttpClient */
   private final BoundRequestBuilder requestBuilder;
   private final String apiKey;
@@ -85,10 +85,11 @@ public class AddEventsClient {
   private final ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
 
   /**
-   * Performs sleep for specified time period is ms.  In tests, this can be a Mockable sleep.
-   * @param sleepMs Time in millisecs to sleep.
+   * Runs task with delay.  In tests, the delay can be mocked.
+   * @param delayMs Time in millisecs to delay.
+   * @param task Task to run
    */
-  private final LongConsumer sleep;
+  private final BiConsumer<Integer, Runnable> runWithDelay;
 
   /** Session ID per Task */
   private final String sessionId = UUID.randomUUID().toString();
@@ -117,22 +118,22 @@ public class AddEventsClient {
   private static final RateLimiter payloadTooLargeLogRateLimiter = RateLimiter.create(1.0/900);  // 1 permit every 15 minutes
 
   /**
-   * AddEventsClient which allows a mockable sleep for testing.
-   * @param sleep Mockable sleep implementation.  If null, default implementation which sleeps will be used.
+   * AddEventsClient which allows a mockable runWithDelay for testing.
+   * @param runWithDelay Mockable runWithDelay implementation.  If null, default implementation which delays with ScheduledExecutorService is used.
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
-  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable LongConsumer sleep) {
+  public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable BiConsumer<Integer, Runnable> runWithDelay) {
     this.apiKey = apiKey;
     this.addEventsTimeoutMs = addEventsTimeoutMs;
     this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
-    this.sleep = sleep != null ? sleep : timeMs -> Uninterruptibles.sleepUninterruptibly(timeMs, TimeUnit.MILLISECONDS);
+    this.runWithDelay = runWithDelay != null ? runWithDelay : (delayMs, task) -> retryExecutor.schedule(task, delayMs, TimeUnit.MILLISECONDS);
     this.requestBuilder = HttpWrapper.asyncHttpClient.preparePost(buildAddEventsUri(scalyrUrl));
     addHeaders();
   }
 
   /**
-   * AddEventsClient with default sleep implementation, which performs sleep.
+   * AddEventsClient with default runWithDelay implementation, which performs runWithDelay with ScheduledExecutorService.
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
   public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor) {
@@ -251,12 +252,13 @@ public class AddEventsClient {
       // error - retry if not timed out and retriable, otherwise, complete with failure
       log.warn("addEvents failed with {}", addEventsResponse);
       if (remainingMs(startTimeMs) > retryDelayMs && addEventsResponse.isRetriable()) {
-        sleep.accept(retryDelayMs);
-        addEventsWithRetry(addEventsPayload, uncompressedPayloadSize, addEventsResult, startTimeMs, retryDelayMs * 2);
+        runWithDelay.accept(retryDelayMs, () ->
+          addEventsWithRetry(addEventsPayload, uncompressedPayloadSize, addEventsResult, startTimeMs, retryDelayMs * 2));
+
       } else {
         addEventsResult.complete(addEventsResponse);
       }
-    }, retryThread);
+    }, null); // null executor runs listener on IO thread
   }
 
   /**

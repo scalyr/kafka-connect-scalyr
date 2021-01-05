@@ -45,7 +45,7 @@ public abstract class TestValues {
   public static final int ADD_EVENTS_TIMEOUT_MS = 20_000;
   public static final int ADD_EVENTS_RETRY_DELAY_MS = 500;
   public static final int EXPECTED_NUM_RETRIES = 6; // Expected num of retries with ADD_EVENTS_TIMEOUT_MS and ADD_EVENTS_RETRY_DELAY_MS
-  public static final long EXPECTED_SLEEP_TIME_MS = 15_500; // Expected sleep time with ADD_EVENTS_TIMEOUT_MS and ADD_EVENTS_RETRY_DELAY_MS
+  public static final long EXPECTED_DELAY_TIME_MS = 15_500; // Expected delay time with ADD_EVENTS_TIMEOUT_MS and ADD_EVENTS_RETRY_DELAY_MS
   public static final String ENRICHMENT_VALUE = "env=test,org=Scalyr";
   public static final Map<String, String> ENRICHMENT_VALUE_MAP = TestUtils.makeMap("env", "test", "org", "Scalyr");
   public static final int MIN_BATCH_SEND_SIZE_BYTES = 500_000;

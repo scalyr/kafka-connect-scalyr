@@ -31,7 +31,6 @@ import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -207,8 +206,8 @@ public class ScalyrSinkTaskTest {
     assumeFalse(sendEntireRecord);
     final int numRequests = 3;
     int requestCount = 0;
-    TestUtils.MockSleep mockSleep = new TestUtils.MockSleep();
-    this.scalyrSinkTask = new ScalyrSinkTask(mockSleep.sleep);
+    TestUtils.MockRunWithDelay mockRunWithDelay = new TestUtils.MockRunWithDelay();
+    this.scalyrSinkTask = new ScalyrSinkTask(mockRunWithDelay.runWithDelay);
     MockWebServer server = new MockWebServer();
 
     startTask(server);
@@ -219,7 +218,7 @@ public class ScalyrSinkTaskTest {
     scalyrSinkTask.put(records);
     scalyrSinkTask.waitForRequestsToComplete();
     assertEquals(requestCount += TestValues.EXPECTED_NUM_RETRIES, server.getRequestCount());
-    assertEquals(TestValues.EXPECTED_SLEEP_TIME_MS, mockSleep.sleepTime.get());
+    assertEquals(TestValues.EXPECTED_DELAY_TIME_MS, mockRunWithDelay.delayTime.get());
 
     // Additional requests should have errors
     final int currentRequestCount = requestCount;
@@ -242,10 +241,10 @@ public class ScalyrSinkTaskTest {
    * Verify that input too long error is ignored
    */
   @Test
-  public void testIgnoreInputTooLongError() throws Exception {
+  public void testIgnoreInputTooLongError() {
     assumeFalse(sendEntireRecord);
-    TestUtils.MockSleep mockSleep = new TestUtils.MockSleep();
-    this.scalyrSinkTask = new ScalyrSinkTask(mockSleep.sleep);
+    TestUtils.MockRunWithDelay mockRunWithDelay = new TestUtils.MockRunWithDelay();
+    this.scalyrSinkTask = new ScalyrSinkTask(mockRunWithDelay.runWithDelay);
     MockWebServer server = new MockWebServer();
 
     startTask(server);
@@ -257,7 +256,7 @@ public class ScalyrSinkTaskTest {
     scalyrSinkTask.flush(Collections.emptyMap());
     scalyrSinkTask.waitForRequestsToComplete();
     assertEquals(2, server.getRequestCount());
-    assertEquals(0, mockSleep.sleepTime.get());
+    assertEquals(0, mockRunWithDelay.delayTime.get());
 
     // Subsequent requests should succeed
     IntStream.range(0, 2).forEach(i -> server.enqueue(new MockResponse().setResponseCode(200).setBody(TestValues.ADD_EVENTS_RESPONSE_SUCCESS)));
