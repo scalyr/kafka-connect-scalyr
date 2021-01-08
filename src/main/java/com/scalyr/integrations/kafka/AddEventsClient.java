@@ -65,7 +65,7 @@ import static org.asynchttpclient.Dsl.*;
  *
  * @see <a href="https://app.scalyr.com/help/api"></a>
  */
-public class AddEventsClient {
+public class AddEventsClient implements AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(AddEventsClient.class);
 
@@ -128,7 +128,7 @@ public class AddEventsClient {
     this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
     this.runWithDelay = runWithDelay != null ? runWithDelay : (delayMs, task) -> retryExecutor.schedule(task, delayMs, TimeUnit.MILLISECONDS);
-    this.requestBuilder = HttpWrapper.asyncHttpClient.preparePost(buildAddEventsUri(scalyrUrl));
+    this.requestBuilder = HttpResource.acquire().preparePost(buildAddEventsUri(scalyrUrl));
     addHeaders();
   }
 
@@ -354,6 +354,11 @@ public class AddEventsClient {
    */
   private long remainingMs(long startTimeMs) {
     return Math.max(addEventsTimeoutMs - (ScalyrUtil.currentTimeMillis() - startTimeMs), 0);
+  }
+
+  @Override
+  public void close() {
+    HttpResource.release();
   }
 
   /**
@@ -594,19 +599,31 @@ public class AddEventsClient {
   }
 
   /**
-   * Wrapper class to manage AsyncHttpClient life cycle.
-   * AsyncHttpClient is a global resource that matches the connector lifecycle.
-   * start/stop should be called by the ScalyrSinkConnector start/stop lifecycle methods.
+   * Manages AsyncHttpClient life cycle.  A single AsyncHttpClient should be used for all tasks.
+   * acquire should be called when an AsyncHttpClient is needed, typically on AddEventsClient instantiation on Task start.
+   * release should be called when the AsyncHttpClient is no longer needed, typically on Task stop.
    */
-  public static class HttpWrapper {
+  public static class HttpResource {
     private static AsyncHttpClient asyncHttpClient;
+    private static AtomicInteger count = new AtomicInteger();
 
-    public static void start() {
-      asyncHttpClient = asyncHttpClient();
+    /**
+     * @return Global AsyncHttpClient instance, initializing it if needed.
+     */
+    public static synchronized AsyncHttpClient acquire() {
+      if (asyncHttpClient == null || asyncHttpClient.isClosed()) {
+        asyncHttpClient = asyncHttpClient();
+      }
+      count.incrementAndGet();
+      return asyncHttpClient;
     }
 
-    public static void stop() {
-      if (asyncHttpClient != null) {
+    /**
+     * Close AsyncHttpClient when no references to it.
+     */
+    public static synchronized void release() {
+      Preconditions.checkState(count.get() > 0, "release called without corresponding acquire");
+      if (count.decrementAndGet() == 0 && asyncHttpClient != null) {
         try {
           asyncHttpClient.close();
         } catch (IOException e) {

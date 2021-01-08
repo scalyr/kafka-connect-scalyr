@@ -28,9 +28,9 @@ import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
+import org.asynchttpclient.AsyncHttpClient;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 
@@ -93,11 +93,6 @@ public class AddEventsClientTest {
   private String scalyrUrl;
   private Compressor compressor;
   private Compressor deflateCompressor;
-
-  @BeforeClass
-  public static void setupResources() {
-    AddEventsClient.HttpWrapper.start();
-  }
 
   @Before
   public void setup() {
@@ -530,6 +525,16 @@ public class AddEventsClientTest {
     AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
     byte[] decompressedPayload = addEventsClient.getDecompressedPayload("invalid".getBytes());
     assertEquals("unable to decompress the payload", new String(decompressedPayload));
+  }
+
+  @Test
+  public void testHttpResource() {
+    final AsyncHttpClient client1 = AddEventsClient.HttpResource.acquire();
+    final AsyncHttpClient client2 = AddEventsClient.HttpResource.acquire();
+    assertEquals(client1, client2);
+
+    AddEventsClient.HttpResource.release();
+    AddEventsClient.HttpResource.release();
   }
 
   /**
