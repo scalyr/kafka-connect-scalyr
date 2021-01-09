@@ -128,7 +128,8 @@ public class AddEventsClient implements AutoCloseable {
     this.initialBackoffDelayMs = initialBackoffDelayMs;
     this.compressor = compressor;
     this.runWithDelay = runWithDelay != null ? runWithDelay : (delayMs, task) -> retryExecutor.schedule(task, delayMs, TimeUnit.MILLISECONDS);
-    this.requestBuilder = HttpResource.acquire().preparePost(buildAddEventsUri(scalyrUrl));
+    final String addEventsUri = buildAddEventsUri(scalyrUrl);
+    this.requestBuilder = HttpResource.acquire().preparePost(addEventsUri);
     addHeaders();
   }
 
@@ -606,6 +607,8 @@ public class AddEventsClient implements AutoCloseable {
   public static class HttpResource {
     private static AsyncHttpClient asyncHttpClient;
     private static AtomicInteger count = new AtomicInteger();
+
+    private HttpResource() {}
 
     /**
      * @return Global AsyncHttpClient instance, initializing it if needed.

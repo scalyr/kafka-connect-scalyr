@@ -93,6 +93,7 @@ public class AddEventsClientTest {
   private String scalyrUrl;
   private Compressor compressor;
   private Compressor deflateCompressor;
+  private AddEventsClient addEventsClient;
 
   @Before
   public void setup() {
@@ -107,6 +108,10 @@ public class AddEventsClientTest {
 
   @After
   public void tearDown() {
+    if (addEventsClient != null) {
+      addEventsClient.close();
+      addEventsClient = null;
+    }
     ScalyrUtil.removeCustomTime();
   }
 
@@ -206,7 +211,7 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
     List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     addEventsClient.log(events);
 
@@ -231,7 +236,7 @@ public class AddEventsClientTest {
 
     // Create and verify addEvents requests
     ObjectMapper objectMapper = new ObjectMapper();
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
     for (int i = 0; i < numRequests; i++) {
       // Create addEvents request
       List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
@@ -254,7 +259,7 @@ public class AddEventsClientTest {
   public void testAddEventsClientErrors() throws Exception {
     int requestCount = 0;
     MockRunWithDelay mockRunWithDelay = new MockRunWithDelay();
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockRunWithDelay.runWithDelay);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockRunWithDelay.runWithDelay);
 
     // Server Too Busy
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
@@ -303,7 +308,7 @@ public class AddEventsClientTest {
    */
   @Test
   public void testDependentRequestsSuccess() throws Exception {
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
 
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
@@ -350,7 +355,7 @@ public class AddEventsClientTest {
   @Test
   public void testDependentRequestsError() throws Exception {
     MockRunWithDelay mockRunWithDelay = new MockRunWithDelay();
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockRunWithDelay.runWithDelay);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor, mockRunWithDelay.runWithDelay);
 
     // MockWebServer response with server busy response for first request
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
@@ -372,7 +377,7 @@ public class AddEventsClientTest {
    */
   @Test
   public void testAddEventsTimeout() throws Exception {
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, 1, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, 1, ADD_EVENTS_RETRY_DELAY_MS, compressor);
 
     CompletableFuture<AddEventsResponse> fakeSlowPendingRequest = new CompletableFuture<>();
     CompletableFuture<AddEventsResponse> request2 = addEventsClient.log(TestUtils.createTestEvents(1, 1, 1, 1), fakeSlowPendingRequest);
@@ -388,7 +393,7 @@ public class AddEventsClientTest {
   @Ignore("Test is slow and should not be included in automated testing")
   @Test
   public void testRetryWithoutMockRetryWithDelay() throws Exception {
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
 
     // Server Too Busy
     TestUtils.addMockResponseWithRetries(server, new MockResponse().setResponseCode(429).setBody(ADD_EVENTS_RESPONSE_SERVER_BUSY));
@@ -407,8 +412,8 @@ public class AddEventsClientTest {
     fails(() -> new AddEventsClient("http://app.scalyr.com", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor), IllegalArgumentException.class);
 
     // Valid
-    new AddEventsClient("http://localhost:63232", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
-    new AddEventsClient("https://app.scalyr.com", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    try (AddEventsClient addEventsClient = new AddEventsClient("http://localhost:63232", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor)) {}
+    try (AddEventsClient addEventsClient = new AddEventsClient("https://app.scalyr.com", API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor)) {};
   }
 
   /**
@@ -437,7 +442,7 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
     List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 
@@ -485,7 +490,7 @@ public class AddEventsClientTest {
     server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
     // Create addEvents request
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
     List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
     events.forEach(event -> event.setMessage(largeMsg));
 
@@ -522,7 +527,7 @@ public class AddEventsClientTest {
 
   @Test
   public void testGetDecompressedPayloadFailedToDecompress() {
-    AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
+    addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, deflateCompressor);
     byte[] decompressedPayload = addEventsClient.getDecompressedPayload("invalid".getBytes());
     assertEquals("unable to decompress the payload", new String(decompressedPayload));
   }
@@ -535,20 +540,20 @@ public class AddEventsClientTest {
 
     AddEventsClient.HttpResource.release();
     AddEventsClient.HttpResource.release();
+    TestUtils.fails(() -> AddEventsClient.HttpResource.release(), IllegalStateException.class);
   }
 
   /**
    * Create a single addEvents Request and verify the request body and header
    */
   private void testSingleRequestWithCompression() {
-    try {
+    try (AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor)) {
       final int numEvents = 10;
 
       // Setup Mock Server
       server.enqueue(new MockResponse().setResponseCode(200).setBody(ADD_EVENTS_RESPONSE_SUCCESS));
 
       // Create addEvents request
-      AddEventsClient addEventsClient = new AddEventsClient(scalyrUrl, API_KEY_VALUE, ADD_EVENTS_TIMEOUT_MS, ADD_EVENTS_RETRY_DELAY_MS, compressor);
       List<Event> events = TestUtils.createTestEvents(numEvents, numServers, numLogFiles, numParsers);
       addEventsClient.log(events);
 
