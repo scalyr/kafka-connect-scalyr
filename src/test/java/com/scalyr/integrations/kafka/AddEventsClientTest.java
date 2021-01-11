@@ -540,7 +540,6 @@ public class AddEventsClientTest {
 
     AddEventsClient.HttpResource.release();
     AddEventsClient.HttpResource.release();
-    TestUtils.fails(() -> AddEventsClient.HttpResource.release(), IllegalStateException.class);
   }
 
   /**
