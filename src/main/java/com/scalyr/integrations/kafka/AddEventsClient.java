@@ -123,14 +123,22 @@ public class AddEventsClient implements AutoCloseable {
    * @throws IllegalArgumentException with invalid URL, which will cause Kafka Connect to terminate the ScalyrSinkTask.
    */
   public AddEventsClient(String scalyrUrl, String apiKey, long addEventsTimeoutMs, int initialBackoffDelayMs, Compressor compressor, @Nullable BiConsumer<Integer, Runnable> runWithDelay) {
-    this.apiKey = apiKey;
-    this.addEventsTimeoutMs = addEventsTimeoutMs;
-    this.initialBackoffDelayMs = initialBackoffDelayMs;
-    this.compressor = compressor;
-    this.runWithDelay = runWithDelay != null ? runWithDelay : (delayMs, task) -> retryExecutor.schedule(task, delayMs, TimeUnit.MILLISECONDS);
-    final String addEventsUri = buildAddEventsUri(scalyrUrl);
-    this.requestBuilder = HttpResource.acquire().preparePost(addEventsUri);
-    addHeaders();
+    AsyncHttpClient asyncHttpClient = HttpResource.acquire();
+    try {
+      this.apiKey = apiKey;
+      this.addEventsTimeoutMs = addEventsTimeoutMs;
+      this.initialBackoffDelayMs = initialBackoffDelayMs;
+      this.compressor = compressor;
+      this.runWithDelay = runWithDelay != null ? runWithDelay : (delayMs, task) -> retryExecutor.schedule(task, delayMs, TimeUnit.MILLISECONDS);
+      this.requestBuilder = asyncHttpClient.preparePost(buildAddEventsUri(scalyrUrl));
+      addHeaders();
+      asyncHttpClient = null;  // Set only when no exceptions are thrown.
+    } finally {
+      if (asyncHttpClient != null) {
+        // Exception thrown in constructor.  Release http resources.
+        HttpResource.release();
+      }
+    }
   }
 
   /**
