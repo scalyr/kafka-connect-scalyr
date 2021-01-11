@@ -629,6 +629,7 @@ public class AddEventsClient implements AutoCloseable {
       if (count.decrementAndGet() == 0 && asyncHttpClient != null) {
         try {
           asyncHttpClient.close();
+          asyncHttpClient = null;
         } catch (IOException e) {
           throw new RuntimeException(e);
         }
