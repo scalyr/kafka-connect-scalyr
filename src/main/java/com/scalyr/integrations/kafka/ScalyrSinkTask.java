@@ -243,6 +243,9 @@ public class ScalyrSinkTask extends SinkTask {
    */
   @Override
   public void stop() {
+    if (addEventsClient != null) {
+      addEventsClient.close();
+    }
     log.info("Stopped ScalyrSinkTask");
   }
 

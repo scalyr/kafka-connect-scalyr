@@ -30,7 +30,6 @@ import org.apache.kafka.connect.errors.ConnectException;
 import org.apache.kafka.connect.errors.RetriableException;
 import org.apache.kafka.connect.sink.SinkRecord;
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -88,11 +87,6 @@ public class ScalyrSinkTaskTest {
     Object data = recordValue.apply(1, 1, 1);
     System.out.println("Executing test with " + (data instanceof Struct ? "schema" : "schemaless") + " recordValue: " + data);
 
-  }
-
-  @BeforeClass
-  public static void setupResources() {
-    AddEventsClient.HttpWrapper.start();
   }
 
   @Before
