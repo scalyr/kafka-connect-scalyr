@@ -78,7 +78,7 @@
         <dependency>
            <groupId>org.slf4j</groupId>
            <artifactId>slf4j-api</artifactId>
-           <version>1.7.5</version>
+           <version>1.7.32</version>
         </dependency>
         <dependency>
            <groupId>org.slf4j</groupId>
@@ -227,8 +227,7 @@
                                     thus making automated enforcement infeasible.
                                     -->
                                     <property name="max" value="300"/>
-                                    <property name="ignorePattern"
-                                              value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
+                                    <property name="ignorePattern" value="^package.*|^import.*|a href|href|http://|https://|ftp://"/>
                                 </module>
                                 <module name="OneTopLevelClass"/>
                                 <module name="RedundantImport"/>
@@ -236,8 +235,7 @@
                                 <module name="NoLineWrap"/>
                                 <module name="EmptyBlock">
                                     <property name="option" value="TEXT"/>
-                                    <property name="tokens"
-                                              value="LITERAL_TRY, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_SWITCH"/>
+                                    <property name="tokens" value="LITERAL_TRY, LITERAL_FINALLY, LITERAL_IF, LITERAL_ELSE, LITERAL_SWITCH"/>
                                 </module>
                                 <module name="ArrayTypeStyle"/>
                                 <module name="NoFinalizer"/>
