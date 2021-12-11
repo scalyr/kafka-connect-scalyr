@@ -14,7 +14,7 @@ jobs: # a collection of steps
     working_directory: ~/circleci-kafka-connect-scalyr # directory where steps will run
 
     docker: # run the steps with Docker
-      - image: circleci/openjdk:8-jdk-stretch # ...with this image as the primary container; this is where all `steps` will run
+      - image: cimg/openjdk:11.0 # ...with this image as the primary container; this is where all `steps` will run
 
     steps: # a collection of executable commands
 
@@ -38,14 +38,6 @@ jobs: # a collection of steps
           command: mvn verify sonar:sonar
 
       - setup_remote_docker
-
-      - run: # Python dependencies for System Test
-          name: Python Dependencies
-          command: |
-            set -x
-            sudo apt update
-            sudo apt install python-pip
-            pip install requests
 
       - run:
           name: System Test
