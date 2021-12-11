@@ -20,3 +20,6 @@ Performance improvements for JSON serialization.
 Features
 * Regular expression support for custom application event mapping `matcher.value`.
 * `matchAll` support for custom application event mapping matcher.
+
+## 1.4
+* Address Log4J Arbitrary Code Execution exploit
