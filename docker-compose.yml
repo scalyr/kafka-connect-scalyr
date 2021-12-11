@@ -8,14 +8,14 @@
 version: '3'
 services:
   zookeeper:
-    image: confluentinc/cp-zookeeper:5.4.3
+    image: confluentinc/cp-zookeeper:6.1.0
     container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
 
   kafka:
-    image: confluentinc/cp-kafka:5.4.3
+    image: confluentinc/cp-kafka:6.1.0
     container_name: kafka
     depends_on:
       - zookeeper
@@ -30,14 +30,14 @@ services:
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
 
   kafka-setup:
-    image: confluentinc/cp-kafka:5.4.3
+    image: confluentinc/cp-kafka:6.1.0
     depends_on:
       - kafka
     command: "bash -c 'echo Waiting for Kafka to be ready... && \
                        cub kafka-ready -z zookeeper:2181 1 30 && \
-                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-config-storage && \
-                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-offset-storage && \
-                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic connect-status-storage && \
+                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --config cleanup.policy=compact --topic connect-config-storage && \
+                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --config cleanup.policy=compact --topic connect-offset-storage && \
+                       kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --config cleanup.policy=compact --topic connect-status-storage && \
                        kafka-topics --create --if-not-exists --zookeeper zookeeper:2181 --partitions 1 --replication-factor 1 --topic logs'"
     environment:
       KAFKA_BROKER_ID: 1

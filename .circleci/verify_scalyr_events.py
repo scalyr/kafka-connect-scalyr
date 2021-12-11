@@ -1,4 +1,5 @@
-# Copyright 2014-2020 Scalyr Inc.
+#!/usr/bin/env python3
+# Copyright 2014-2021 Scalyr Inc.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -106,10 +107,10 @@ def check_scalyr_events(additional_filter, expected_num_events):
 
   print("Query returned {0} Scalyr events".format(matches))
   if not has_expected_session_attrs:
-    print "Session attributes incorrect!"
+    print("Session attributes incorrect!")
 
   if not has_expected_event_attrs:
-    print "Event attributes incorrect!"
+    print("Event attributes incorrect!")
 
   return matches == expected_num_events and has_expected_session_attrs and has_expected_event_attrs
 
