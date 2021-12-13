@@ -22,4 +22,5 @@ Features
 * `matchAll` support for custom application event mapping matcher.
 
 ## 1.4
-* Address Log4J Arbitrary Code Execution exploit
+* Address Log4J Arbitrary Code Execution exploit by upgrading to log4j v2.15.0. For more information on the vulnerability
+  see upstream log4j CVE https://nvd.nist.gov/vuln/detail/CVE-2021-44228.
