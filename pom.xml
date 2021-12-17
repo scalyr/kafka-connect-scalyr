@@ -4,7 +4,7 @@
 
     <groupId>com.scalyr.integrations.kafka</groupId>
     <artifactId>kafka-connect-scalyr-sink</artifactId>
-    <version>1.4</version>
+    <version>1.5</version>
     <packaging>jar</packaging>
 
     <name>kafka-connect-scalyr-sink</name>
@@ -78,12 +78,12 @@
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-core</artifactId>
-            <version>2.15.0</version>
+            <version>2.16.0</version>
         </dependency>
         <dependency>
             <groupId>org.apache.logging.log4j</groupId>
             <artifactId>log4j-slf4j-impl</artifactId>
-            <version>2.15.0</version>
+            <version>2.16.0</version>
         </dependency>
     </dependencies>
     <build>
