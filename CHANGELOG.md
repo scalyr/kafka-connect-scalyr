@@ -1,5 +1,14 @@
 # Kafka Connect Scalyr Sink Connector Changes by Release
 
+## 1.6
+* Address Log4J Arbitrary Code Execution exploit by upgrading to log4j v2.17.0. For more information on the vulnerability
+  see upstream log4j CVE https://nvd.nist.gov/vuln/detail/CVE-2021-45105.
+
+## 1.5
+
+* Address Log4J Arbitrary Code Execution exploit by upgrading to log4j v2.16.0. For more information on the vulnerability
+  see upstream log4j CVE https://nvd.nist.gov/vuln/detail/CVE-2021-45046.
+
 ## 1.4
 
 * Address Log4J Arbitrary Code Execution exploit by upgrading to log4j v2.15.0. For more information on the vulnerability
