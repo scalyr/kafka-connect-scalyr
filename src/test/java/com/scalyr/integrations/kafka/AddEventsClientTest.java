@@ -26,8 +26,8 @@ import okhttp3.Headers;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okhttp3.mockwebserver.RecordedRequest;
-import org.apache.log4j.Level;
-import org.apache.log4j.LogManager;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.core.config.Configurator;
 import org.asynchttpclient.AsyncHttpClient;
 import org.junit.After;
 import org.junit.Before;
@@ -47,6 +47,7 @@ import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
+
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -103,7 +104,7 @@ public class AddEventsClientTest {
     this.deflateCompressor = CompressorFactory.getCompressor(CompressorFactory.DEFLATE, 3);
 
     // We disable payload logging so we don't get very large raw payload messages in the log output
-    LogManager.getLogger("com.scalyr.integrations.kafka.eventpayload").setLevel(Level.OFF);
+    Configurator.setLevel("com.scalyr.integrations.kafka.eventpayload", Level.OFF);
   }
 
   @After
