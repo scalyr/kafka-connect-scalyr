@@ -34,7 +34,7 @@
         <dependency>
             <groupId>com.scalyr</groupId>
             <artifactId>scalyr-client</artifactId>
-            <version>6.0.28</version>
+            <version>6.0.29</version>
         </dependency>
         <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
