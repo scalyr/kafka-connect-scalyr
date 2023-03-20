@@ -42,12 +42,6 @@ jobs:
         env:
           MAVEN_OPTS: -Xms1G -Xmx6000M
 
-      - name: Analyze on SonarCloud
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
-        run: mvn sonar:sonar
-
       - name: System Test
         run: |
           set -x
