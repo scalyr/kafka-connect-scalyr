@@ -16,6 +16,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    outputs:
+      sinkVersion: ${{ steps.lookupSinkVersion.ouputs.result }}
+
     steps:
       - name: Checkout
         uses: actions/checkout@v2
@@ -59,3 +62,31 @@ jobs:
           python3 .circleci/verify_scalyr_events.py app=\'customApp\'
           python3 .circleci/verify_scalyr_events.py tag=\'fluentd-apache\'
           python3 .circleci/verify_scalyr_events.py tag=\'fluentbit-cpu\' 50
+
+      - name: get sink version
+        id: lookupSinkVersion
+        uses: mikefarah/yq@v4.31.2
+        with:
+          cmd: yq '.project.version' 'pom.xml'
+
+      - name: Upload Sink Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sink-artifact
+          path: target/components/packages/scalyr-kafka-connect-scalyr-sink-${{ steps.lookupSinkVersion.outputs.result }}.zip
+
+  publish-github-release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build
+    steps:
+      - name: Download test results
+        uses: actions/download-artifact@v3
+        with:
+          name: sink-artifact
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/components/packages/scalyr-kafka-connect-scalyr-sink-${{ needs.build.outputs.sinkVersion }}.zip
