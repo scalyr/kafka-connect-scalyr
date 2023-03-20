@@ -46,6 +46,10 @@ jobs:
           MAVEN_OPTS: -Xms1G -Xmx6000M
 
       - name: System Test
+        env:
+          CIRCLE_BUILD_NUM: ${{ github.run_number }}_${{ github.run_attempt }}
+          READ_API_KEY: ${{ secrets.READ_API_KEY }}
+          WRITE_API_KEY: ${{ secrets.WRITE_API_KEY }}
         run: |
           set -x
           docker-compose up -d
