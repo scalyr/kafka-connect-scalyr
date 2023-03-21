@@ -52,20 +52,36 @@ jobs:
           WRITE_API_KEY: ${{ secrets.WRITE_API_KEY }}
         run: |
           set -x
+          echo "::group::Pull docker images in parallel"
+          docker-compose pull -q
+          echo "::endgroup::"
+          echo "::group::Build custom docker images in parallel"
+          docker-compose build --parallel --progress plain
+          echo "::endgroup::"
+          echo "::group::Start docker services for test"
           docker-compose up -d
+          echo "::endgroup::"
+          echo "::group::Verify docker services are running"
           docker-compose ps
+          echo "::endgroup::"
 
           # Wait for Kafka to be ready
+          echo "::group::Wait for Kafka to be ready"
           docker run --network container:kafka confluentinc/cp-kafka:latest cub kafka-ready -z zookeeper:2181 1 60
+          echo "::endgroup::"
 
           # Configure Scalyr Sink Connector to run in distributed worker configuration
+          echo "::group::Configure Scalyr Sink Connector to run in distributed worker configuration"
           .circleci/configure_scalyr_connector.sh
+          echo "::endgroup::"
 
           # Verify logs are in Scalyr
+          echo "::group::Verify logs are in Scalyr"
           python3 .circleci/verify_scalyr_events.py dataset=\'accesslog\'
           python3 .circleci/verify_scalyr_events.py app=\'customApp\'
           python3 .circleci/verify_scalyr_events.py tag=\'fluentd-apache\'
           python3 .circleci/verify_scalyr_events.py tag=\'fluentbit-cpu\' 50
+          echo "::endgroup::"
 
       - name: get sink version
         id: lookupSinkVersion
