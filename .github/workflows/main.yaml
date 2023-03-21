@@ -1,0 +1,112 @@
+name: ci
+
+on:
+  push:
+    branches: [ master ]
+  # the following triggers are for testing purposes only. remove before merge.
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+
+env:
+  LANG: en_US.UTF-8
+  LC_ALL: en_US.UTF-8
+
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    outputs:
+      sinkVersion: ${{ steps.lookupSinkVersion.ouputs.result }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'adopt'
+
+      - name: Set up Maven
+        uses: stCarolas/setup-maven@v4.5
+        with:
+          maven-version: 3.8.4
+
+      - name: Cache maven
+        uses: actions/cache@v3
+        with:
+          path: ~/.m2
+          key: maven-cache-${{ hashFiles('*/pom.xml') }}
+
+      - name: Build, test, and package
+        run: mvn --batch-mode package
+        env:
+          MAVEN_OPTS: -Xms1G -Xmx6000M
+
+      - name: System Test
+        env:
+          CIRCLE_BUILD_NUM: ${{ github.run_number }}_${{ github.run_attempt }}
+          READ_API_KEY: ${{ secrets.READ_API_KEY }}
+          WRITE_API_KEY: ${{ secrets.WRITE_API_KEY }}
+        run: |
+          set -x
+          echo "::group::Pull docker images in parallel"
+          docker-compose pull -q
+          echo "::endgroup::"
+          echo "::group::Build custom docker images in parallel"
+          docker-compose build --parallel --progress plain
+          echo "::endgroup::"
+          echo "::group::Start docker services for test"
+          docker-compose up -d
+          echo "::endgroup::"
+          echo "::group::Verify docker services are running"
+          docker-compose ps
+          echo "::endgroup::"
+
+          # Wait for Kafka to be ready
+          echo "::group::Wait for Kafka to be ready"
+          docker run --network container:kafka confluentinc/cp-kafka:latest cub kafka-ready -z zookeeper:2181 1 60
+          echo "::endgroup::"
+
+          # Configure Scalyr Sink Connector to run in distributed worker configuration
+          echo "::group::Configure Scalyr Sink Connector to run in distributed worker configuration"
+          .circleci/configure_scalyr_connector.sh
+          echo "::endgroup::"
+
+          # Verify logs are in Scalyr
+          echo "::group::Verify logs are in Scalyr"
+          python3 .circleci/verify_scalyr_events.py dataset=\'accesslog\'
+          python3 .circleci/verify_scalyr_events.py app=\'customApp\'
+          python3 .circleci/verify_scalyr_events.py tag=\'fluentd-apache\'
+          python3 .circleci/verify_scalyr_events.py tag=\'fluentbit-cpu\' 50
+          echo "::endgroup::"
+
+      - name: get sink version
+        id: lookupSinkVersion
+        uses: mikefarah/yq@v4.31.2
+        with:
+          cmd: yq '.project.version' 'pom.xml'
+
+      - name: Upload Sink Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: sink-artifact
+          path: target/components/packages/scalyr-kafka-connect-scalyr-sink-${{ steps.lookupSinkVersion.outputs.result }}.zip
+
+  publish-github-release:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    needs:
+      - build
+    steps:
+      - name: Download sink artifact
+        uses: actions/download-artifact@v3
+        with:
+          name: sink-artifact
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: target/components/packages/scalyr-kafka-connect-scalyr-sink-${{ needs.build.outputs.sinkVersion }}.zip
