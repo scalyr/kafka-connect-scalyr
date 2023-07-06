@@ -10,7 +10,7 @@
     <name>kafka-connect-scalyr-sink</name>
 
     <properties>
-        <kafka.version>2.8.1</kafka.version>
+        <kafka.version>3.2.3</kafka.version>
         <junit.version>4.13.2</junit.version>
         <sonar.projectKey>scalyr_kafka-connect-scalyr</sonar.projectKey>
         <sonar.organization>scalyr</sonar.organization>
